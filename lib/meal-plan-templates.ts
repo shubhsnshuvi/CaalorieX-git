@@ -602,3 +602,83 @@ export async function generateMealPlanFromTemplates(userPreferences: {
     throw error
   }
 }
+
+// Update the calculateCalorieGoal function to properly handle muscle-building
+export function calculateCalorieGoal(
+  currentWeight: number,
+  goalWeight: number,
+  tdee: number,
+  dietPeriod: string,
+  dietGoal: string,
+) {
+  // Convert diet period to days
+  const periodToDays: { [key: string]: number } = {
+    "4-weeks": 28,
+    "2-months": 60,
+    "3-months": 90,
+    "4-months": 120,
+    "5-months": 150,
+    "6-months": 180,
+  }
+
+  const days = periodToDays[dietPeriod] || 28
+
+  // For muscle-building, calculate based on goal weight
+  if (dietGoal === "muscle-building") {
+    // If goal weight is higher than current weight
+    if (goalWeight > currentWeight) {
+      // Calculate weight difference
+      const weightDiff = goalWeight - currentWeight
+
+      // Calculate total calorie surplus needed (1kg of muscle requires ~7700 calories)
+      const totalCalorieAdjustment = weightDiff * 7700
+
+      // Calculate daily surplus needed to reach goal weight in the given time period
+      const dailyCalorieAdjustment = Math.round(totalCalorieAdjustment / days)
+
+      // Cap the daily surplus to a reasonable amount (max 1000 calories)
+      const cappedAdjustment = Math.min(dailyCalorieAdjustment, 1000)
+
+      // Return TDEE plus the capped adjustment
+      return tdee + cappedAdjustment
+    } else {
+      // If goal weight is same or lower, still provide a moderate surplus for muscle building
+      return tdee + 500
+    }
+  }
+
+  // For other diet goals
+  const weightDiff = goalWeight - currentWeight
+  if (dietGoal === "lean-mass" || dietGoal === "keto" || dietGoal === "maintenance") {
+    if (dietGoal === "keto") {
+      return Math.round(tdee * 0.9) // Slight deficit for keto
+    } else if (dietGoal === "maintenance") {
+      return tdee // Exact maintenance calories
+    }
+    return tdee // Maintenance for lean mass
+  }
+
+  // For weight loss/gain goals
+  if (weightDiff === 0) {
+    return tdee // Maintenance
+  }
+
+  // Calculate daily calorie adjustment needed
+  // 1 kg of body weight = approximately 7700 calories
+  const totalCalorieAdjustment = weightDiff * 7700
+  const dailyCalorieAdjustment = Math.round(totalCalorieAdjustment / days)
+
+  // Cap the daily adjustment to reasonable limits
+  let adjustedCalories = tdee + dailyCalorieAdjustment
+
+  // Safety limits: don't go below 1200 for women or 1500 for men
+  // Don't exceed 1000 calorie surplus or deficit
+  if (dailyCalorieAdjustment > 0) {
+    adjustedCalories = Math.min(tdee + 1000, adjustedCalories)
+  } else {
+    adjustedCalories = Math.max(1200, adjustedCalories)
+    adjustedCalories = Math.max(tdee - 1000, adjustedCalories)
+  }
+
+  return Math.round(adjustedCalories)
+}

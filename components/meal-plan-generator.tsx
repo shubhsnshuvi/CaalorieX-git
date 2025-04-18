@@ -61,14 +61,14 @@ const formSchema = z.object({
 const generateQuantity = (foodItem: string, dietGoal: string, mealType: string) => {
   // Base quantities for different food types
   const quantities = {
-    roti: { base: "2", weightLoss: "1", weightGain: "3", muscleBuilding: "2", leanMass: "2", keto: "0" },
-    chapati: { base: "2", weightLoss: "1", weightGain: "3", muscleBuilding: "2", leanMass: "2", keto: "0" },
-    paratha: { base: "2", weightLoss: "1", weightGain: "3", muscleBuilding: "2", leanMass: "2", keto: "0" },
+    roti: { base: "2", weightLoss: "1", weightGain: "3", muscleBuilding: "3", leanMass: "2", keto: "0" },
+    chapati: { base: "2", weightLoss: "1", weightGain: "3", muscleBuilding: "3", leanMass: "2", keto: "0" },
+    paratha: { base: "2", weightLoss: "1", weightGain: "3", muscleBuilding: "3", leanMass: "2", keto: "0" },
     rice: {
       base: "1 cup",
       weightLoss: "1/2 cup",
       weightGain: "1.5 cups",
-      muscleBuilding: "1 cup",
+      muscleBuilding: "1.5 cups",
       leanMass: "1 cup",
       keto: "0",
     },
@@ -76,7 +76,7 @@ const generateQuantity = (foodItem: string, dietGoal: string, mealType: string) 
       base: "1 cup",
       weightLoss: "3/4 cup",
       weightGain: "1.5 cups",
-      muscleBuilding: "1 cup",
+      muscleBuilding: "1.5 cups",
       leanMass: "1 cup",
       keto: "1/2 cup",
     },
@@ -84,15 +84,23 @@ const generateQuantity = (foodItem: string, dietGoal: string, mealType: string) 
       base: "1 cup",
       weightLoss: "3/4 cup",
       weightGain: "1.5 cups",
-      muscleBuilding: "1 cup",
+      muscleBuilding: "1.5 cups",
       leanMass: "1 cup",
       keto: "1 cup",
+    },
+    sabzi: {
+      base: "1 cup",
+      weightLoss: "1.5 cups",
+      weightGain: "1 cup",
+      muscleBuilding: "1.5 cups",
+      leanMass: "1.5 cups",
+      keto: "2 cups",
     },
     paneer: {
       base: "100g",
       weightLoss: "75g",
       weightGain: "150g",
-      muscleBuilding: "150g",
+      muscleBuilding: "200g",
       leanMass: "100g",
       keto: "150g",
     },
@@ -100,7 +108,7 @@ const generateQuantity = (foodItem: string, dietGoal: string, mealType: string) 
       base: "150g",
       weightLoss: "100g",
       weightGain: "200g",
-      muscleBuilding: "200g",
+      muscleBuilding: "250g",
       leanMass: "150g",
       keto: "200g",
     },
@@ -108,16 +116,16 @@ const generateQuantity = (foodItem: string, dietGoal: string, mealType: string) 
       base: "150g",
       weightLoss: "100g",
       weightGain: "200g",
-      muscleBuilding: "200g",
+      muscleBuilding: "250g",
       leanMass: "150g",
       keto: "200g",
     },
-    eggs: { base: "2", weightLoss: "2 whites", weightGain: "3", muscleBuilding: "3-4", leanMass: "2-3", keto: "3" },
+    eggs: { base: "2", weightLoss: "2 whites", weightGain: "3", muscleBuilding: "4", leanMass: "3", keto: "3" },
     oats: {
       base: "1/2 cup",
       weightLoss: "1/3 cup",
       weightGain: "3/4 cup",
-      muscleBuilding: "2/3 cup",
+      muscleBuilding: "1 cup",
       leanMass: "1/2 cup",
       keto: "1/4 cup",
     },
@@ -125,7 +133,7 @@ const generateQuantity = (foodItem: string, dietGoal: string, mealType: string) 
       base: "1 cup",
       weightLoss: "1/2 cup",
       weightGain: "1.5 cups",
-      muscleBuilding: "1 cup",
+      muscleBuilding: "2 cups",
       leanMass: "1 cup",
       keto: "1/2 cup",
     },
@@ -137,12 +145,12 @@ const generateQuantity = (foodItem: string, dietGoal: string, mealType: string) 
       leanMass: "1 bowl",
       keto: "1.5 bowls",
     },
-    nuts: { base: "30g", weightLoss: "15g", weightGain: "50g", muscleBuilding: "40g", leanMass: "30g", keto: "50g" },
+    nuts: { base: "30g", weightLoss: "15g", weightGain: "50g", muscleBuilding: "60g", leanMass: "30g", keto: "50g" },
     fruits: {
       base: "1 medium",
       weightLoss: "1 small",
       weightGain: "2 medium",
-      muscleBuilding: "1 medium",
+      muscleBuilding: "2 medium",
       leanMass: "1 medium",
       keto: "1/2 small",
     },
@@ -150,7 +158,7 @@ const generateQuantity = (foodItem: string, dietGoal: string, mealType: string) 
       base: "2 pieces",
       weightLoss: "1 piece",
       weightGain: "3-4 pieces",
-      muscleBuilding: "3 pieces",
+      muscleBuilding: "4 pieces",
       leanMass: "2 pieces",
       keto: "0",
     },
@@ -158,7 +166,7 @@ const generateQuantity = (foodItem: string, dietGoal: string, mealType: string) 
       base: "1 medium",
       weightLoss: "1 small",
       weightGain: "2 medium",
-      muscleBuilding: "1 large",
+      muscleBuilding: "2 medium",
       leanMass: "1 medium",
       keto: "0",
     },
@@ -166,7 +174,7 @@ const generateQuantity = (foodItem: string, dietGoal: string, mealType: string) 
       base: "1 cup",
       weightLoss: "1/2 cup",
       weightGain: "1.5 cups",
-      muscleBuilding: "1 cup",
+      muscleBuilding: "1.5 cups",
       leanMass: "1 cup",
       keto: "0",
     },
@@ -174,7 +182,7 @@ const generateQuantity = (foodItem: string, dietGoal: string, mealType: string) 
       base: "1 cup",
       weightLoss: "1/2 cup",
       weightGain: "1.5 cups",
-      muscleBuilding: "1 cup",
+      muscleBuilding: "1.5 cups",
       leanMass: "1 cup",
       keto: "0",
     },
@@ -213,11 +221,18 @@ const generateQuantity = (foodItem: string, dietGoal: string, mealType: string) 
   // If no specific quantity was found, use meal-based defaults
   if (!quantity) {
     if (mealType === "Breakfast") {
-      quantity = dietGoal === "weight-loss" ? "1 serving" : "1-2 servings"
+      quantity =
+        dietGoal === "weight-loss" ? "1 serving" : dietGoal === "muscle-building" ? "2 servings" : "1-2 servings"
     } else if (mealType === "Lunch" || mealType === "Dinner") {
-      quantity = dietGoal === "weight-loss" ? "1 serving" : "1 regular serving"
+      quantity =
+        dietGoal === "weight-loss" ? "1 serving" : dietGoal === "muscle-building" ? "1.5 servings" : "1 regular serving"
     } else if (mealType === "Snack") {
-      quantity = dietGoal === "weight-loss" ? "1 small serving" : "1 serving"
+      quantity =
+        dietGoal === "weight-loss"
+          ? "1 small serving"
+          : dietGoal === "muscle-building"
+            ? "1 large serving"
+            : "1 serving"
     } else {
       quantity = "1 serving"
     }
@@ -269,14 +284,33 @@ const calculateCalorieGoal = (
 
   const days = periodToDays[dietPeriod] || 28
 
-  // Calculate weight difference
-  const weightDiff = goalWeight - currentWeight
+  // For muscle-building, calculate based on goal weight
+  if (dietGoal === "muscle-building") {
+    // If goal weight is higher than current weight
+    if (goalWeight > currentWeight) {
+      // Calculate weight difference
+      const weightDiff = goalWeight - currentWeight
 
-  // For maintenance goals
-  if (dietGoal === "lean-mass" || dietGoal === "muscle-building" || dietGoal === "keto" || dietGoal === "maintenance") {
-    if (dietGoal === "muscle-building") {
-      return tdee + 300 // Slight surplus for muscle building
-    } else if (dietGoal === "keto") {
+      // Calculate total calorie surplus needed (1kg of muscle requires ~7700 calories)
+      const totalCalorieAdjustment = weightDiff * 7700
+
+      // Calculate daily surplus needed to reach goal weight in the given time period
+      const dailyCalorieAdjustment = Math.round(totalCalorieAdjustment / days)
+
+      // Cap the daily surplus to a reasonable amount (max 1000 calories)
+      const cappedAdjustment = Math.min(dailyCalorieAdjustment, 1000)
+
+      // Return TDEE plus the capped adjustment
+      return tdee + cappedAdjustment
+    } else {
+      // If goal weight is same or lower, still provide a moderate surplus for muscle building
+      return tdee + 500
+    }
+  }
+
+  // For other diet goals
+  if (dietGoal === "lean-mass" || dietGoal === "keto" || dietGoal === "maintenance") {
+    if (dietGoal === "keto") {
       return Math.round(tdee * 0.9) // Slight deficit for keto
     } else if (dietGoal === "maintenance") {
       return tdee // Exact maintenance calories
@@ -285,9 +319,12 @@ const calculateCalorieGoal = (
   }
 
   // For weight loss/gain goals
-  if (weightDiff === 0) {
+  if (goalWeight === currentWeight) {
     return tdee // Maintenance
   }
+
+  // Calculate weight difference
+  const weightDiff = goalWeight - currentWeight
 
   // Calculate daily calorie adjustment needed
   // 1 kg of body weight = approximately 7700 calories
@@ -462,6 +499,23 @@ const generateMealPlan = async (
     ],
   }
 
+  // Special lunch and dinner options for Indian vegetarian
+  const indianVegetarianLunchDinner = [
+    "Roti with Dal Tadka and Mixed Vegetable Sabzi",
+    "Chapati with Rajma Curry and Jeera Rice",
+    "Paratha with Chana Masala and Steamed Rice",
+    "Roti with Palak Paneer and Plain Rice",
+    "Chapati with Dal Fry and Aloo Gobi",
+    "Roti with Paneer Butter Masala and Jeera Rice",
+    "Chapati with Mixed Dal and Bhindi Sabzi",
+    "Roti with Kadai Paneer and Steamed Rice",
+    "Chapati with Moong Dal and Lauki Sabzi",
+    "Roti with Matar Paneer and Pulao",
+    "Chapati with Toor Dal and Baingan Bharta",
+    "Roti with Paneer Tikka Masala and Jeera Rice",
+    "Chapati with Dal Makhani and Mixed Vegetable Curry",
+  ]
+
   // Diet goal specific foods for Indian vegetarian
   const indianVegetarianByGoal = {
     "weight-loss": [
@@ -490,6 +544,12 @@ const generateMealPlan = async (
       "Quinoa Pulao with Tofu Curry",
       "Chickpea and Vegetable Curry with Brown Rice",
       "Multigrain Roti with Paneer Tikka Masala",
+      "Protein-Rich Dal Makhani with Jeera Rice",
+      "Paneer and Vegetable Stuffed Paratha",
+      "High-Protein Chana Masala with Brown Rice",
+      "Soya Granules Curry with Multigrain Roti",
+      "Protein-Packed Rajma Curry with Steamed Rice",
+      "Tofu Bhurji with Whole Wheat Chapati",
     ],
     "lean-mass": [
       "Multigrain Roti with Paneer Bhurji",
@@ -509,210 +569,14 @@ const generateMealPlan = async (
       "Keto Vegetable Upma with Coconut",
       "Almond Flour Dosa with Coconut Chutney",
     ],
-  }
-
-  // Add diet goal specific foods for the new diet preferences
-  const hinduFastingByGoal = {
-    "weight-loss": [
-      "Cucumber and Mint Raita",
-      "Makhana (Fox Nuts) Snack",
-      "Sabudana Khichdi (Light Version)",
-      "Fruit Salad with Rock Salt",
-      "Coconut Water",
-      "Steamed Sweet Potato",
-    ],
-    "weight-gain": [
-      "Sabudana Vada with Peanuts",
-      "Kuttu Paratha with Ghee",
-      "Dry Fruit Ladoo",
-      "Makhana Kheer with Full Fat Milk",
-      "Banana Shake with Nuts",
-      "Singhare ka Halwa",
-    ],
-    "muscle-building": [
-      "Sabudana Khichdi with Extra Peanuts",
-      "Paneer Tikki (Fasting Version)",
-      "Dry Fruits and Nuts Mix",
-      "Rajgira Paratha with Curd",
-      "Makhana with Ghee",
-      "Coconut and Banana Smoothie",
-    ],
-    "lean-mass": [
-      "Steamed Sweet Potato with Curd",
-      "Sabudana Khichdi with Moderate Peanuts",
-      "Fresh Fruit Bowl",
-      "Rajgira Roti with Minimal Ghee",
-      "Roasted Makhana",
-      "Cucumber and Coconut Salad",
-    ],
-    keto: [
-      "Avocado with Rock Salt",
-      "Paneer Cubes with Minimal Spices",
-      "Coconut Milk Smoothie",
-      "Roasted Peanuts",
-      "Cucumber Raita",
-      "Almond Milk with Chia Seeds",
-    ],
     maintenance: [
-      "Balanced Sabudana Khichdi",
-      "Moderate Portion of Kuttu Paratha",
-      "Mixed Fruit Bowl",
-      "Roasted Makhana with Light Seasoning",
-      "Cucumber and Tomato Salad",
-      "Buttermilk with Rock Salt",
-    ],
-  }
-
-  const jainDietByGoal = {
-    "weight-loss": [
-      "Steamed Moong Sprouts",
-      "Jain Vegetable Soup",
-      "Jain Green Salad",
-      "Roasted Makhana",
-      "Jain Khichdi (Light Version)",
-      "Fresh Fruit Platter",
-    ],
-    "weight-gain": [
-      "Jain Thepla with Extra Ghee",
-      "Dry Fruit Ladoo",
-      "Jain Pulao with Cashews",
-      "Jain Sweet Pongal",
-      "Jain Kachori with Chutney",
-      "Jain Sheera",
-    ],
-    "muscle-building": [
-      "Jain Protein-Rich Dal",
-      "Jain Vegetable Pulao with Nuts",
-      "Jain Paneer Bhurji",
-      "Jain Chilla with Paneer Stuffing",
-      "Dry Fruits and Nuts Mix",
-      "Jain Vegetable Curry with Tofu",
-    ],
-    "lean-mass": [
-      "Jain Moong Dal Khichdi",
-      "Jain Vegetable Soup",
-      "Jain Roti with Minimal Ghee",
-      "Steamed Vegetables (Jain Style)",
-      "Jain Dhokla",
-      "Fresh Fruit Salad",
-    ],
-    keto: [
-      "Jain Paneer Tikka",
-      "Jain Vegetable Stir-Fry (Low Carb)",
-      "Jain Coconut Curry",
-      "Jain Cauliflower Rice",
-      "Jain Avocado Salad",
-      "Jain Almond Flour Pancakes",
-    ],
-    maintenance: [
-      "Balanced Jain Thepla",
-      "Jain Mixed Vegetable Curry",
-      "Jain Dal with Moderate Spices",
-      "Jain Vegetable Pulao",
-      "Jain Dhokla",
-      "Jain Fruit and Nut Mix",
-    ],
-  }
-
-  const sattvicDietByGoal = {
-    "weight-loss": [
-      "Light Moong Dal Soup",
-      "Steamed Vegetables with Minimal Spices",
-      "Fresh Fruit Platter",
-      "Cucumber and Coconut Salad",
-      "Sattvic Vegetable Broth",
-      "Lemon Water with Honey",
-    ],
-    "weight-gain": [
-      "Khichdi with Extra Ghee",
-      "Sweet Pongal",
-      "Badam Halwa",
-      "Rice with Ghee and Dal",
-      "Sattvic Vegetable Curry with Coconut",
-      "Milk with Dry Fruits",
-    ],
-    "muscle-building": [
-      "Moong Dal Chilla with Paneer",
-      "Sattvic Khichdi with Extra Protein",
-      "Coconut and Banana Smoothie",
-      "Sattvic Vegetable Pulao with Nuts",
-      "Paneer and Vegetable Curry",
-      "Milk with Almonds and Dates",
-    ],
-    "lean-mass": [
-      "Balanced Sattvic Khichdi",
-      "Steamed Vegetables with Light Seasoning",
-      "Fresh Seasonal Fruits",
-      "Sattvic Vegetable Soup",
-      "Chapati with Minimal Ghee",
-      "Cucumber and Coconut Raita",
-    ],
-    keto: [
-      "Paneer with Sattvic Spices",
-      "Coconut Milk Curry",
-      "Avocado with Rock Salt",
-      "Sattvic Vegetable Stir-Fry (Low Carb)",
-      "Almond Flour Pancakes",
-      "Coconut and Chia Seed Pudding",
-    ],
-    maintenance: [
-      "Balanced Sattvic Khichdi",
-      "Moderate Portion of Rice with Ghee",
-      "Mixed Seasonal Fruits",
-      "Sattvic Vegetable Curry",
-      "Chapati with Ghee",
-      "Buttermilk with Cumin",
-    ],
-  }
-
-  const indianRegionalByGoal = {
-    "weight-loss": [
-      "South Indian Rasam",
-      "Bengali Vegetable Chop (Baked)",
-      "Gujarati Khakhra",
-      "Maharashtrian Koshimbir",
-      "Kerala Style Vegetable Stew",
-      "Kashmiri Kahwa Tea",
-    ],
-    "weight-gain": [
-      "Punjabi Paratha with Butter",
-      "Hyderabadi Biryani",
-      "Bengali Mishti Doi",
-      "Rajasthani Dal Baati Churma",
-      "Kerala Appam with Stew",
-      "Gujarati Undhiyu",
-    ],
-    "muscle-building": [
-      "Punjabi Paneer Tikka",
-      "South Indian Egg Dosa",
-      "Bengali Fish Curry",
-      "Kashmiri Rogan Josh",
-      "Kerala Fish Molee",
-      "Hyderabadi Chicken Biryani",
-    ],
-    "lean-mass": [
-      "South Indian Idli Sambar",
-      "Bengali Steamed Fish",
-      "Gujarati Dal",
-      "Maharashtrian Zunka Bhakri",
-      "Kerala Vegetable Stew",
-      "Kashmiri Haak Saag",
-    ],
-    keto: [
-      "Punjabi Paneer Bhurji",
-      "South Indian Cauliflower Rice",
-      "Bengali Fish Curry (No Sugar)",
-      "Kashmiri Meat Curry",
-      "Kerala Coconut Curry",
-      "Goan Keto-Friendly Fish Curry",
-    ],
-    maintenance: [
-      "Balanced South Indian Thali",
-      "Moderate Portion of Bengali Rice and Fish",
-      "Gujarati Balanced Meal",
-      "Maharashtrian Mixed Vegetable Curry",
-      "Kerala Rice with Fish Curry",
-      "Punjabi Dal with Roti",
+      "Balanced Roti with Dal and Vegetable Curry",
+      "Chapati with Moderate Paneer Dish and Rice",
+      "Mixed Grain Khichdi with Vegetables",
+      "Balanced Thali with Roti, Rice, Dal, and Sabzi",
+      "Moderate Portion of Vegetable Biryani with Raita",
+      "Balanced Dosa with Sambar and Chutney",
+      "Chapati with Mixed Vegetable Curry and Curd",
     ],
   }
 
@@ -726,21 +590,6 @@ const generateMealPlan = async (
   ) {
     const goalSpecificFoods = indianVegetarianByGoal[dietGoal as keyof typeof indianVegetarianByGoal]
     selectedFoods.push(...goalSpecificFoods)
-  } else if (dietPreference === "hindu-fasting" && hinduFastingByGoal[dietGoal as keyof typeof hinduFastingByGoal]) {
-    const goalSpecificFoods = hinduFastingByGoal[dietGoal as keyof typeof hinduFastingByGoal]
-    selectedFoods.push(...goalSpecificFoods)
-  } else if (dietPreference === "jain-diet" && jainDietByGoal[dietGoal as keyof typeof jainDietByGoal]) {
-    const goalSpecificFoods = jainDietByGoal[dietGoal as keyof typeof jainDietByGoal]
-    selectedFoods.push(...goalSpecificFoods)
-  } else if (dietPreference === "sattvic-diet" && sattvicDietByGoal[dietGoal as keyof typeof sattvicDietByGoal]) {
-    const goalSpecificFoods = sattvicDietByGoal[dietGoal as keyof typeof sattvicDietByGoal]
-    selectedFoods.push(...goalSpecificFoods)
-  } else if (
-    dietPreference === "indian-regional" &&
-    indianRegionalByGoal[dietGoal as keyof typeof indianRegionalByGoal]
-  ) {
-    const goalSpecificFoods = indianRegionalByGoal[dietGoal as keyof typeof indianRegionalByGoal]
-    selectedFoods.push(...goalSpecificFoods)
   }
 
   // Generate meal plan
@@ -749,8 +598,41 @@ const generateMealPlan = async (
       day,
       meals: meals
         .map((meal) => {
-          // Select a random food from the options
-          const randomFood = selectedFoods[Math.floor(Math.random() * selectedFoods.length)]
+          // Skip breakfast for intermittent fasting
+          if (dietPreference === "intermittent-fasting" && meal === "Breakfast") {
+            return null
+          }
+
+          // For Indian vegetarian, ensure lunch and dinner have appropriate meals
+          let randomFood
+          if (dietPreference === "indian-vegetarian" && (meal === "Lunch" || meal === "Dinner")) {
+            // Use specific lunch/dinner options for Indian vegetarian
+            if (dietGoal === "muscle-building") {
+              // Use muscle-building specific meals for lunch/dinner
+              randomFood =
+                indianVegetarianByGoal["muscle-building"][
+                  Math.floor(Math.random() * indianVegetarianByGoal["muscle-building"].length)
+                ]
+            } else if (dietGoal === "weight-loss") {
+              // Use weight-loss specific meals for lunch/dinner
+              randomFood =
+                indianVegetarianByGoal["weight-loss"][
+                  Math.floor(Math.random() * indianVegetarianByGoal["weight-loss"].length)
+                ]
+            } else if (dietGoal === "weight-gain") {
+              // Use weight-gain specific meals for lunch/dinner
+              randomFood =
+                indianVegetarianByGoal["weight-gain"][
+                  Math.floor(Math.random() * indianVegetarianByGoal["weight-gain"].length)
+                ]
+            } else {
+              // Use general Indian vegetarian lunch/dinner options
+              randomFood = indianVegetarianLunchDinner[Math.floor(Math.random() * indianVegetarianLunchDinner.length)]
+            }
+          } else {
+            // Select a random food from the options
+            randomFood = selectedFoods[Math.floor(Math.random() * selectedFoods.length)]
+          }
 
           // Generate appropriate quantity for the food
           const quantity = generateQuantity(randomFood, dietGoal, meal)
@@ -813,6 +695,7 @@ const generateMealPlan = async (
                 lauki: { calories: 14, protein: 0.6, carbs: 3.1, fat: 0.1 },
                 eggplant: { calories: 25, protein: 1, carbs: 6, fat: 0.2 },
                 baingan: { calories: 25, protein: 1, carbs: 6, fat: 0.2 },
+                sabzi: { calories: 49, protein: 2.3, carbs: 9.8, fat: 0.5 },
 
                 // Fruits
                 apple: { calories: 52, protein: 0.3, carbs: 13.8, fat: 0.2 },
@@ -939,8 +822,16 @@ const generateMealPlan = async (
             let dietGoalMultiplier = 1
             if (dietGoal === "weight-loss") {
               dietGoalMultiplier = 0.9
-            } else if (dietGoal === "weight-gain" || dietGoal === "muscle-building") {
-              dietGoalMultiplier = 1.1
+            } else if (dietGoal === "weight-gain") {
+              dietGoalMultiplier = 1.2
+            } else if (dietGoal === "muscle-building") {
+              // Increase protein for muscle building
+              return {
+                calories: Math.round(nutritionMatch.calories * quantityMultiplier * mealTypeMultiplier * 1.1),
+                protein: Math.round(nutritionMatch.protein * quantityMultiplier * mealTypeMultiplier * 1.5),
+                carbs: Math.round(nutritionMatch.carbs * quantityMultiplier * mealTypeMultiplier * 1.1),
+                fat: Math.round(nutritionMatch.fat * quantityMultiplier * mealTypeMultiplier),
+              }
             }
 
             // Calculate final nutrition values with precise rounding
