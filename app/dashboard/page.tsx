@@ -5,8 +5,6 @@ import { useAuth } from "@/lib/use-auth"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { MealPlanGenerator } from "@/components/meal-plan-generator"
-import { UsdaMealPlanGenerator } from "@/components/usda-meal-plan-generator"
 import { EnhancedMealPlanGenerator } from "@/components/enhanced-meal-plan-generator"
 import { MealPlanHistory } from "@/components/meal-plan-history"
 import { UserProfile } from "@/components/user-profile"
@@ -281,20 +279,13 @@ export default function DashboardPage() {
 
       <Tabs defaultValue="enhanced-meal-plan" className="w-full">
         {/* Mobile-friendly tabs with icons */}
-        <TabsList className="grid w-full grid-cols-5 h-auto mb-6 p-1 bg-muted/80 backdrop-blur-sm sticky top-[65px] z-10 shadow-sm">
+        <TabsList className="grid w-full grid-cols-4 h-auto mb-6 p-1 bg-muted/80 backdrop-blur-sm sticky top-[65px] z-10 shadow-sm">
           <TabsTrigger
             value="enhanced-meal-plan"
             className="flex flex-col py-3 px-1 h-auto text-xs sm:text-sm sm:flex-row sm:items-center sm:gap-2 data-[state=active]:bg-white dark:data-[state=active]:bg-gray-800 data-[state=active]:shadow-sm rounded-md transition-all"
           >
             <Sparkles className="h-4 w-4 mx-auto sm:mx-0" />
-            <span className="mt-1 sm:mt-0">Enhanced Plan</span>
-          </TabsTrigger>
-          <TabsTrigger
-            value="usda-meal-plan"
-            className="flex flex-col py-3 px-1 h-auto text-xs sm:text-sm sm:flex-row sm:items-center sm:gap-2 data-[state=active]:bg-white dark:data-[state=active]:bg-gray-800 data-[state=active]:shadow-sm rounded-md transition-all"
-          >
-            <Database className="h-4 w-4 mx-auto sm:mx-0" />
-            <span className="mt-1 sm:mt-0">USDA Plan</span>
+            <span className="mt-1 sm:mt-0">Meal Plan</span>
           </TabsTrigger>
           <TabsTrigger
             value="history"
@@ -320,13 +311,6 @@ export default function DashboardPage() {
         </TabsList>
         <TabsContent value="enhanced-meal-plan" className="space-y-4 mt-2">
           <EnhancedMealPlanGenerator userData={userData} />
-        </TabsContent>
-        <TabsContent value="usda-meal-plan" className="space-y-4 mt-2">
-          <UsdaMealPlanGenerator userData={userData} />
-        </TabsContent>
-        {/* Keep the basic meal plan content but don't show the tab */}
-        <TabsContent value="meal-plan" className="space-y-4 mt-2">
-          <MealPlanGenerator userData={userData} />
         </TabsContent>
         <TabsContent value="history" className="space-y-4 mt-2">
           <MealPlanHistory />

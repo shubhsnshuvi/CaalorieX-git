@@ -19,7 +19,7 @@ interface FoodItem {
   protein: number
   fat: number
   carbs: number
-  source: "ifct" | "usda" | "custom" | "template"
+  source: "ifct" | "usda" | "custom" | "template" | "recipe"
   category?: string
   description?: string
 }
@@ -29,7 +29,7 @@ export function FoodSearch() {
   const [isSearching, setIsSearching] = useState(false)
   const [searchResults, setSearchResults] = useState<FoodItem[]>([])
   const [error, setError] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<"all" | "ifct" | "usda" | "custom" | "templates">("all")
+  const [activeTab, setActiveTab] = useState<"all" | "ifct" | "usda" | "custom" | "templates" | "recipes">("all")
   const [isInitialLoad, setIsInitialLoad] = useState(true)
   const [recentFoods, setRecentFoods] = useState<FoodItem[]>([])
 
@@ -41,7 +41,7 @@ export function FoodSearch() {
     }
   }, [isInitialLoad])
 
-  // Function to fetch recent foods from all collections
+  // Update the fetchRecentFoods function to ensure it fetches custom foods and recipes
   const fetchRecentFoods = async () => {
     try {
       setIsSearching(true)
@@ -103,6 +103,26 @@ export function FoodSearch() {
           carbs: data.totalNutrition?.carbs || 0,
           source: "template",
           category: data.category || data.mealType || "Template",
+          description: data.description || "",
+        })
+      })
+
+      // Fetch from recipes collection
+      const recipesRef = collectionGroup(db, "recipes")
+      const recipesQuery = query(recipesRef, limit(5))
+      const recipesSnapshot = await getDocs(recipesQuery)
+
+      recipesSnapshot.forEach((doc) => {
+        const data = doc.data()
+        recentItems.push({
+          id: doc.id,
+          name: data.name || data.recipeName || "Recipe",
+          calories: data.totalNutrition?.calories || 0,
+          protein: data.totalNutrition?.protein || 0,
+          fat: data.totalNutrition?.fat || 0,
+          carbs: data.totalNutrition?.carbs || 0,
+          source: "recipe",
+          category: data.category || "Recipe",
           description: data.description || "",
         })
       })
@@ -178,7 +198,7 @@ export function FoodSearch() {
     }
   }
 
-  // Function to search custom food database
+  // Update the searchCustomFoods function to include recipes
   const searchCustomFoods = async (term: string): Promise<FoodItem[]> => {
     try {
       const results: FoodItem[] = []
@@ -207,6 +227,35 @@ export function FoodSearch() {
             carbs: data.nutrients?.carbohydrates || data.nutritionalInfo?.carbs || 0,
             source: "custom",
             category: data.category || data.foodCategory || "Custom",
+            description: data.description || "",
+          })
+        }
+      })
+
+      // Search in recipes collection group
+      const recipesRef = collectionGroup(db, "recipes")
+      const recipesSnapshot = await getDocs(recipesRef)
+
+      recipesSnapshot.forEach((doc) => {
+        const data = doc.data()
+        const name = (data.name || data.recipeName || "")?.toLowerCase()
+        const category = (data.category || "")?.toLowerCase()
+        const description = (data.description || "")?.toLowerCase()
+
+        if (
+          name.includes(term.toLowerCase()) ||
+          category.includes(term.toLowerCase()) ||
+          description.includes(term.toLowerCase())
+        ) {
+          results.push({
+            id: doc.id,
+            name: data.name || data.recipeName || "Recipe",
+            calories: data.totalNutrition?.calories || 0,
+            protein: data.totalNutrition?.protein || 0,
+            fat: data.totalNutrition?.fat || 0,
+            carbs: data.totalNutrition?.carbs || 0,
+            source: "recipe",
+            category: data.category || "Recipe",
             description: data.description || "",
           })
         }
@@ -347,7 +396,48 @@ export function FoodSearch() {
     return indianFoodKeywords.some((keyword) => lowerName.includes(keyword))
   }
 
-  // Main search function
+  // Add a function to search recipes
+  const searchRecipes = async (term: string): Promise<FoodItem[]> => {
+    try {
+      const results: FoodItem[] = []
+
+      // Search in recipes collection group
+      const recipesRef = collectionGroup(db, "recipes")
+      const recipesSnapshot = await getDocs(recipesRef)
+
+      recipesSnapshot.forEach((doc) => {
+        const data = doc.data()
+        const name = (data.name || data.recipeName || "")?.toLowerCase()
+        const category = (data.category || "")?.toLowerCase()
+        const description = (data.description || "")?.toLowerCase()
+
+        if (
+          name.includes(term.toLowerCase()) ||
+          category.includes(term.toLowerCase()) ||
+          description.includes(term.toLowerCase())
+        ) {
+          results.push({
+            id: doc.id,
+            name: data.name || data.recipeName || "Recipe",
+            calories: data.totalNutrition?.calories || 0,
+            protein: data.totalNutrition?.protein || 0,
+            fat: data.totalNutrition?.fat || 0,
+            carbs: data.totalNutrition?.carbs || 0,
+            source: "recipe",
+            category: data.category || "Recipe",
+            description: data.description || "",
+          })
+        }
+      })
+
+      return results
+    } catch (error) {
+      console.error("Error searching recipes:", error)
+      throw error
+    }
+  }
+
+  // Update the handleSearch function to include recipes
   const handleSearch = async () => {
     if (!searchTerm.trim()) return
 
@@ -357,15 +447,16 @@ export function FoodSearch() {
 
     try {
       // Search in all databases in parallel
-      const [ifctResults, usdaResults, customResults, templateResults] = await Promise.all([
+      const [ifctResults, usdaResults, customResults, templateResults, recipeResults] = await Promise.all([
         searchIFCT(searchTerm),
         searchUSDA(searchTerm),
         searchCustomFoods(searchTerm),
         searchMealTemplates(searchTerm),
+        searchRecipes(searchTerm),
       ])
 
       // Prioritize results
-      // 1. Custom foods and templates
+      // 1. Custom foods, recipes, and templates
       // 2. Indian foods from IFCT
       // 3. Other IFCT foods
       // 4. Indian foods from USDA
@@ -378,6 +469,7 @@ export function FoodSearch() {
 
       const allResults = [
         ...customResults,
+        ...recipeResults,
         ...templateResults,
         ...indianFoodsIFCT,
         ...otherFoodsIFCT,
@@ -400,6 +492,7 @@ export function FoodSearch() {
     if (activeTab === "ifct") return result.source === "ifct"
     if (activeTab === "usda") return result.source === "usda"
     if (activeTab === "custom") return result.source === "custom"
+    if (activeTab === "recipe") return result.source === "recipe"
     if (activeTab === "templates") return result.source === "template"
     return false
   })
@@ -436,11 +529,12 @@ export function FoodSearch() {
 
           {searchResults.length > 0 ? (
             <Tabs defaultValue="all" value={activeTab} onValueChange={(value) => setActiveTab(value as any)}>
-              <TabsList className="grid w-full grid-cols-5">
+              <TabsList className="grid w-full grid-cols-6">
                 <TabsTrigger value="all">All Results</TabsTrigger>
                 <TabsTrigger value="ifct">IFCT</TabsTrigger>
                 <TabsTrigger value="usda">USDA</TabsTrigger>
                 <TabsTrigger value="custom">Custom</TabsTrigger>
+                <TabsTrigger value="recipe">Recipes</TabsTrigger>
                 <TabsTrigger value="templates">Templates</TabsTrigger>
               </TabsList>
               <TabsContent value="all" className="mt-4">
@@ -474,6 +568,16 @@ export function FoodSearch() {
                 )}
               </TabsContent>
               <TabsContent value="custom" className="mt-4">
+                <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+                  {filteredResults.map((food) => (
+                    <FoodCard key={`${food.source}-${food.id}`} food={food} />
+                  ))}
+                </div>
+                {filteredResults.length === 0 && (
+                  <div className="text-center py-8 text-muted-foreground">No results found in this category</div>
+                )}
+              </TabsContent>
+              <TabsContent value="recipe" className="mt-4">
                 <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
                   {filteredResults.map((food) => (
                     <FoodCard key={`${food.source}-${food.id}`} food={food} />
@@ -528,6 +632,8 @@ function FoodCard({ food }: { food: FoodItem }) {
         return "bg-green-50"
       case "template":
         return "bg-purple-50"
+      case "recipe":
+        return "bg-pink-50"
       default:
         return "bg-gray-50"
     }
@@ -544,6 +650,8 @@ function FoodCard({ food }: { food: FoodItem }) {
         return "bg-green-100 text-green-800 border-green-200"
       case "template":
         return "bg-purple-100 text-purple-800 border-purple-200"
+      case "recipe":
+        return "bg-pink-100 text-pink-800 border-pink-200"
       default:
         return "bg-gray-100 text-gray-800 border-gray-200"
     }
@@ -559,6 +667,8 @@ function FoodCard({ food }: { food: FoodItem }) {
       case "custom":
         return <ChefHat className="h-3 w-3 mr-1" />
       case "template":
+        return <Utensils className="h-3 w-3 mr-1" />
+      case "recipe":
         return <Utensils className="h-3 w-3 mr-1" />
       default:
         return null
@@ -576,6 +686,8 @@ function FoodCard({ food }: { food: FoodItem }) {
         return "Custom"
       case "template":
         return "Template"
+      case "recipe":
+        return "Recipe"
       default:
         return source
     }
