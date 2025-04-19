@@ -17,7 +17,6 @@ import { useToast } from "@/components/ui/use-toast"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-// First, import the new component at the top of the file
 import { MealPlanPdf } from "@/components/meal-plan-pdf"
 
 const formSchema = z.object({
@@ -335,7 +334,6 @@ const calculateCalorieGoal = (
   let adjustedCalories = tdee + dailyCalorieAdjustment
 
   // Safety limits: don't go below 1200 for women or 1500 for men
-  // Don't exceed 1000 calorie surplus or deficit
   if (dailyCalorieAdjustment > 0) {
     adjustedCalories = Math.min(tdee + 1000, adjustedCalories)
   } else {
@@ -344,6 +342,70 @@ const calculateCalorieGoal = (
   }
 
   return Math.round(adjustedCalories)
+}
+
+// Diet goal specific foods for Indian vegetarian
+const indianVegetarianByGoal = {
+  "weight-loss": [
+    "Roti with Lauki Sabzi (Bottle Gourd Curry)",
+    "Moong Dal Khichdi with Spinach",
+    "Chapati with Baingan Bharta (Roasted Eggplant)",
+    "Vegetable Daliya (Broken Wheat Upma)",
+    "Roti with Mixed Vegetable Curry (No Potato)",
+    "Steamed Idli with Sambar (No Coconut Chutney)",
+    "Cucumber and Sprouts Salad with Lemon Dressing",
+  ],
+  "weight-gain": [
+    "Paneer Paratha with Curd and Pickle",
+    "Chole Bhature with Onion Salad",
+    "Aloo Paratha with Butter and Curd",
+    "Vegetable Pulao with Paneer Makhani",
+    "Stuffed Paratha with Butter and Pickle",
+    "Masala Dosa with Extra Ghee and Potato Filling",
+    "Puri with Aloo Sabzi and Kheer",
+  ],
+  "muscle-building": [
+    "Paneer Bhurji with Multigrain Roti",
+    "Sprouts Curry with Brown Rice",
+    "Soya Chunks Curry with Roti",
+    "Moong Dal Cheela with Paneer Stuffing",
+    "Quinoa Pulao with Tofu Curry",
+    "Chickpea and Vegetable Curry with Brown Rice",
+    "Multigrain Roti with Paneer Tikka Masala",
+    "Protein-Rich Dal Makhani with Jeera Rice",
+    "Paneer and Vegetable Stuffed Paratha",
+    "High-Protein Chana Masala with Brown Rice",
+    "Soya Granules Curry with Multigrain Roti",
+    "Protein-Packed Rajma Curry with Steamed Rice",
+    "Tofu Bhurji with Whole Wheat Chapati",
+  ],
+  "lean-mass": [
+    "Multigrain Roti with Paneer Bhurji",
+    "Brown Rice with Dal and Vegetable Curry",
+    "Oats Idli with Sambar",
+    "Quinoa Upma with Mixed Vegetables",
+    "Ragi Dosa with Vegetable Curry",
+    "Jowar Roti with Palak Paneer",
+    "Millet Khichdi with Vegetable Raita",
+  ],
+  keto: [
+    "Paneer Tikka with Mint Chutney (No Roti)",
+    "Cauliflower Rice with Paneer Butter Masala",
+    "Spinach and Paneer Curry with Almond Flour Roti",
+    "Avocado and Cucumber Raita",
+    "Coconut Flour Pancakes with Sugar-Free Syrup",
+    "Keto Vegetable Upma with Coconut",
+    "Almond Flour Dosa with Coconut Chutney",
+  ],
+  maintenance: [
+    "Balanced Roti with Dal and Vegetable Curry",
+    "Chapati with Moderate Paneer Dish and Rice",
+    "Mixed Grain Khichdi with Vegetables",
+    "Balanced Thali with Roti, Rice, Dal, and Sabzi",
+    "Moderate Portion of Vegetable Biryani with Raita",
+    "Balanced Dosa with Sambar and Chutney",
+    "Chapati with Mixed Vegetable Curry and Curd",
+  ],
 }
 
 // Mock function to simulate meal plan generation
@@ -359,7 +421,7 @@ const generateMealPlan = async (
   // Simulate API delay
   await new Promise((resolve) => setTimeout(resolve, 2000))
 
-  const meals = ["Breakfast", "Lunch", "Dinner", "Snack"]
+  const meals = ["Breakfast", "Lunch", "Snack", "Dinner"]
   const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
   // Food options based on diet preference
@@ -515,70 +577,6 @@ const generateMealPlan = async (
     "Roti with Paneer Tikka Masala and Jeera Rice",
     "Chapati with Dal Makhani and Mixed Vegetable Curry",
   ]
-
-  // Diet goal specific foods for Indian vegetarian
-  const indianVegetarianByGoal = {
-    "weight-loss": [
-      "Roti with Lauki Sabzi (Bottle Gourd Curry)",
-      "Moong Dal Khichdi with Spinach",
-      "Chapati with Baingan Bharta (Roasted Eggplant)",
-      "Vegetable Daliya (Broken Wheat Upma)",
-      "Roti with Mixed Vegetable Curry (No Potato)",
-      "Steamed Idli with Sambar (No Coconut Chutney)",
-      "Cucumber and Sprouts Salad with Lemon Dressing",
-    ],
-    "weight-gain": [
-      "Paneer Paratha with Curd and Pickle",
-      "Chole Bhature with Onion Salad",
-      "Aloo Paratha with Butter and Curd",
-      "Vegetable Pulao with Paneer Makhani",
-      "Stuffed Paratha with Butter and Pickle",
-      "Masala Dosa with Extra Ghee and Potato Filling",
-      "Puri with Aloo Sabzi and Kheer",
-    ],
-    "muscle-building": [
-      "Paneer Bhurji with Multigrain Roti",
-      "Sprouts Curry with Brown Rice",
-      "Soya Chunks Curry with Roti",
-      "Moong Dal Cheela with Paneer Stuffing",
-      "Quinoa Pulao with Tofu Curry",
-      "Chickpea and Vegetable Curry with Brown Rice",
-      "Multigrain Roti with Paneer Tikka Masala",
-      "Protein-Rich Dal Makhani with Jeera Rice",
-      "Paneer and Vegetable Stuffed Paratha",
-      "High-Protein Chana Masala with Brown Rice",
-      "Soya Granules Curry with Multigrain Roti",
-      "Protein-Packed Rajma Curry with Steamed Rice",
-      "Tofu Bhurji with Whole Wheat Chapati",
-    ],
-    "lean-mass": [
-      "Multigrain Roti with Paneer Bhurji",
-      "Brown Rice with Dal and Vegetable Curry",
-      "Oats Idli with Sambar",
-      "Quinoa Upma with Mixed Vegetables",
-      "Ragi Dosa with Vegetable Curry",
-      "Jowar Roti with Palak Paneer",
-      "Millet Khichdi with Vegetable Raita",
-    ],
-    keto: [
-      "Paneer Tikka with Mint Chutney (No Roti)",
-      "Cauliflower Rice with Paneer Butter Masala",
-      "Spinach and Paneer Curry with Almond Flour Roti",
-      "Avocado and Cucumber Raita",
-      "Coconut Flour Pancakes with Sugar-Free Syrup",
-      "Keto Vegetable Upma with Coconut",
-      "Almond Flour Dosa with Coconut Chutney",
-    ],
-    maintenance: [
-      "Balanced Roti with Dal and Vegetable Curry",
-      "Chapati with Moderate Paneer Dish and Rice",
-      "Mixed Grain Khichdi with Vegetables",
-      "Balanced Thali with Roti, Rice, Dal, and Sabzi",
-      "Moderate Portion of Vegetable Biryani with Raita",
-      "Balanced Dosa with Sambar and Chutney",
-      "Chapati with Mixed Vegetable Curry and Curd",
-    ],
-  }
 
   // Select food options based on diet preference
   const selectedFoods = foodOptions[dietPreference as keyof typeof foodOptions] || foodOptions["non-veg"]
@@ -958,9 +956,6 @@ export function MealPlanGenerator({ userData }: { userData: any }) {
     calorieAdjustment: null,
   })
 
-  // Fix the dependency array in the useEffect to properly watch form values
-  // Replace the problematic useEffect with:
-
   useEffect(() => {
     if (
       isValidUserData &&
@@ -1209,9 +1204,9 @@ export function MealPlanGenerator({ userData }: { userData: any }) {
             <CardContent>
               {hasMedicalConditions && (
                 <Alert className="mb-4 bg-blue-50 border-blue-200">
-                  <AlertCircle className="h-4 w-4 text-blue-600" />
-                  <AlertTitle className="text-blue-800">Medical Conditions Detected</AlertTitle>
-                  <AlertDescription className="text-blue-700">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Medical Conditions Detected</AlertTitle>
+                  <AlertDescription>
                     Your meal plan will be tailored to accommodate your medical conditions:
                     {userData.medicalConditions.map((condition: string) => (
                       <Badge key={condition} className="ml-1 mr-1 bg-blue-100 text-blue-800 hover:bg-blue-100">
@@ -1230,8 +1225,8 @@ export function MealPlanGenerator({ userData }: { userData: any }) {
 
               {hasAllergies && (
                 <Alert className="mb-4 bg-yellow-50 border-yellow-200">
-                  <AlertCircle className="h-4 w-4 text-yellow-600" />
-                  <AlertTitle className="text-yellow-800">Allergies/Intolerances</AlertTitle>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Allergies/Intolerances</AlertTitle>
                   <AlertDescription className="text-yellow-700">
                     Your meal plan will exclude: <span className="font-medium">{userData.allergies}</span>
                   </AlertDescription>
@@ -1264,7 +1259,7 @@ export function MealPlanGenerator({ userData }: { userData: any }) {
                           {calorieAdjustment && (
                             <span className="ml-1">
                               ({calorieAdjustment.type === "deficit" ? "-" : "+"}
-                              {calorieAdjustment.amount} calories)
+                              {Math.abs(calorieAdjustment.amount)} calories)
                             </span>
                           )}
                         </div>
@@ -1283,6 +1278,7 @@ export function MealPlanGenerator({ userData }: { userData: any }) {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Diet Preference</FormLabel>
+
                           <Select onValueChange={field.onChange} defaultValue={field.value}>
                             <FormControl>
                               <SelectTrigger>
@@ -1520,8 +1516,6 @@ export function MealPlanGenerator({ userData }: { userData: any }) {
     </>
   )
 }
-
-// Add this export at the end of the file, after the MealPlanGenerator component
 
 // Export the generateMealPlan function for use as a fallback
 export { generateMealPlan }
