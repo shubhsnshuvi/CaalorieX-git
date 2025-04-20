@@ -436,18 +436,26 @@ const generateMealPlan = async (
       "Vegetable Lasagna with Ricotta",
     ],
     "indian-vegetarian": [
-      "Roti with Paneer Butter Masala and Jeera Rice",
-      "Chapati with Mixed Vegetable Curry and Dal Tadka",
-      "Paratha with Chana Masala and Raita",
-      "Pulao with Dal Fry and Aloo Gobi",
-      "Roti with Palak Paneer and Steamed Rice",
-      "Chapati with Rajma Curry and Jeera Rice",
-      "Vegetable Biryani with Cucumber Raita",
-      "Poha with Mixed Vegetables",
+      "Poha with Peanuts and Vegetables",
       "Upma with Coconut Chutney",
-      "Idli Sambar with Coconut Chutney",
-      "Masala Dosa with Sambar",
-      "Vegetable Uttapam with Tomato Chutney",
+      "Idli with Sambar and Coconut Chutney",
+      "Masala Dosa with Potato Filling and Sambar",
+      "Plain Dosa with Coconut Chutney",
+      "Aloo Paratha with Curd",
+      "Gobi Paratha with Pickle",
+      "Besan Chilla with Mint Chutney",
+      "Bread Upma with Vegetables",
+      "Vermicelli Upma with Vegetables",
+      "Vada with Sambar",
+      "Methi Thepla with Curd",
+      "Paneer Paratha with Pickle",
+      "Rava Idli with Sambar",
+      "Uttapam with Tomato and Onion",
+      "Moong Dal Cheela with Curd",
+      "Sabudana Khichdi with Peanuts",
+      "Daliya (Broken Wheat) Porridge",
+      "Sprouts Salad with Lemon Dressing",
+      "Vegetable Sandwich with Mint Chutney",
     ],
     vegan: [
       "Avocado Toast with Hemp Seeds",
@@ -604,29 +612,92 @@ const generateMealPlan = async (
           // For Indian vegetarian, ensure lunch and dinner have appropriate meals
           let randomFood
           if (dietPreference === "indian-vegetarian" && (meal === "Lunch" || meal === "Dinner")) {
-            // Use specific lunch/dinner options for Indian vegetarian
-            if (dietGoal === "muscle-building") {
-              // Use muscle-building specific meals for lunch/dinner
-              randomFood =
-                indianVegetarianByGoal["muscle-building"][
-                  Math.floor(Math.random() * indianVegetarianByGoal["muscle-building"].length)
-                ]
-            } else if (dietGoal === "weight-loss") {
-              // Use weight-loss specific meals for lunch/dinner
-              randomFood =
-                indianVegetarianByGoal["weight-loss"][
-                  Math.floor(Math.random() * indianVegetarianByGoal["weight-loss"].length)
-                ]
+            // Create a complete Indian meal with all components
+            const rotiOptions = [
+              "Roti",
+              "Chapati",
+              "Paratha",
+              "Naan",
+              "Phulka",
+              "Tandoori Roti",
+              "Missi Roti",
+              "Thepla",
+            ]
+            const dalOptions = [
+              "Dal Tadka",
+              "Dal Fry",
+              "Dal Makhani",
+              "Moong Dal",
+              "Toor Dal",
+              "Chana Dal",
+              "Rajma",
+              "Chole",
+            ]
+            const riceOptions = [
+              "Steamed Rice",
+              "Jeera Rice",
+              "Pulao",
+              "Plain Rice",
+              "Lemon Rice",
+              "Vegetable Pulao",
+              "Ghee Rice",
+            ]
+            const sabziOptions = [
+              "Mixed Vegetable Curry",
+              "Aloo Gobi",
+              "Palak Paneer",
+              "Bhindi Masala",
+              "Baingan Bharta",
+              "Matar Paneer",
+              "Paneer Butter Masala",
+              "Kadai Paneer",
+              "Lauki Sabzi",
+              "Aloo Matar",
+              "Malai Kofta",
+              "Chana Masala",
+              "Aloo Jeera",
+              "Paneer Tikka Masala",
+            ]
+
+            // Select one item from each category based on diet goal
+            let roti, dal, rice, sabzi
+
+            if (dietGoal === "weight-loss") {
+              // For weight loss: prefer simple roti, lighter dals, less rice
+              roti = rotiOptions[Math.floor(Math.random() * 3)] // Stick to basic rotis
+              dal = dalOptions.filter((d) => !d.includes("Makhani"))[Math.floor(Math.random() * 6)] // Avoid rich dals
+              rice = riceOptions.filter((r) => !r.includes("Pulao"))[Math.floor(Math.random() * 3)] // Simple rice
+              sabzi = sabziOptions.filter((s) => !s.includes("Paneer") && !s.includes("Malai"))[
+                Math.floor(Math.random() * 6)
+              ] // Lighter vegetables
+            } else if (dietGoal === "muscle-building") {
+              // For muscle building: protein-rich options
+              roti = rotiOptions[Math.floor(Math.random() * rotiOptions.length)]
+              dal = dalOptions.filter((d) => d.includes("Rajma") || d.includes("Chole") || d.includes("Makhani"))[
+                Math.floor(Math.random() * 3)
+              ] // Protein-rich dals
+              rice = riceOptions[Math.floor(Math.random() * riceOptions.length)]
+              sabzi = sabziOptions.filter((s) => s.includes("Paneer"))[Math.floor(Math.random() * 5)] // Paneer for protein
             } else if (dietGoal === "weight-gain") {
-              // Use weight-gain specific meals for lunch/dinner
-              randomFood =
-                indianVegetarianByGoal["weight-gain"][
-                  Math.floor(Math.random() * indianVegetarianByGoal["weight-gain"].length)
-                ]
+              // For weight gain: richer options
+              roti = rotiOptions.filter((r) => r.includes("Paratha") || r.includes("Naan"))[
+                Math.floor(Math.random() * 2)
+              ] // Richer breads
+              dal = dalOptions.filter((d) => d.includes("Makhani") || d.includes("Fry"))[Math.floor(Math.random() * 2)] // Richer dals
+              rice = riceOptions.filter((r) => r.includes("Pulao") || r.includes("Ghee"))[Math.floor(Math.random() * 2)] // Richer rice
+              sabzi = sabziOptions.filter((s) => s.includes("Paneer") || s.includes("Malai"))[
+                Math.floor(Math.random() * 4)
+              ] // Richer curries
             } else {
-              // Use general Indian vegetarian lunch/dinner options
-              randomFood = indianVegetarianLunchDinner[Math.floor(Math.random() * indianVegetarianLunchDinner.length)]
+              // For maintenance and other goals: balanced options
+              roti = rotiOptions[Math.floor(Math.random() * rotiOptions.length)]
+              dal = dalOptions[Math.floor(Math.random() * dalOptions.length)]
+              rice = riceOptions[Math.floor(Math.random() * riceOptions.length)]
+              sabzi = sabziOptions[Math.floor(Math.random() * sabziOptions.length)]
             }
+
+            // Create the complete meal
+            randomFood = `${roti} with ${dal}, ${rice}, and ${sabzi}`
           } else {
             // Select a random food from the options
             randomFood = selectedFoods[Math.floor(Math.random() * selectedFoods.length)]
@@ -818,6 +889,60 @@ const generateMealPlan = async (
 
             // Diet goal adjustments
             let dietGoalMultiplier = 1
+
+            // Special handling for complete Indian meals
+            if (foodItem.includes(" with ") && foodItem.includes(", ") && foodItem.includes(" and ")) {
+              // This is a complete Indian meal with multiple components
+              const components = foodItem.split(" with ")[1].split(", ")
+              components.unshift(foodItem.split(" with ")[0]) // Add the first component (roti/chapati)
+
+              let totalCalories = 0
+              let totalProtein = 0
+              let totalCarbs = 0
+              let totalFat = 0
+
+              // Process each component
+              for (const component of components) {
+                const cleanComponent = component.replace(" and ", "").trim()
+                let componentNutrition = nutritionDatabase.default
+
+                // Find matching food in database
+                for (const [key, value] of Object.entries(nutritionDatabase)) {
+                  if (cleanComponent.toLowerCase().includes(key)) {
+                    componentNutrition = value
+                    break
+                  }
+                }
+
+                // Add to totals (with appropriate portion sizes)
+                let componentMultiplier = 1
+                if (
+                  cleanComponent.includes("Roti") ||
+                  cleanComponent.includes("Chapati") ||
+                  cleanComponent.includes("Paratha")
+                ) {
+                  componentMultiplier = dietGoal === "weight-loss" ? 0.5 : dietGoal === "weight-gain" ? 1.5 : 1
+                } else if (cleanComponent.includes("Rice")) {
+                  componentMultiplier = dietGoal === "weight-loss" ? 0.3 : dietGoal === "weight-gain" ? 1.2 : 0.7
+                }
+
+                totalCalories += componentNutrition.calories * componentMultiplier
+                totalProtein += componentNutrition.protein * componentMultiplier
+                totalCarbs += componentNutrition.carbs * componentMultiplier
+                totalFat += componentNutrition.fat * componentMultiplier
+              }
+
+              // Apply meal type and diet goal multipliers
+              totalCalories *= mealTypeMultiplier * dietGoalMultiplier
+
+              return {
+                calories: Math.round(totalCalories),
+                protein: Math.round(totalProtein * mealTypeMultiplier),
+                carbs: Math.round(totalCarbs * mealTypeMultiplier),
+                fat: Math.round(totalFat * mealTypeMultiplier),
+              }
+            }
+
             if (dietGoal === "weight-loss") {
               dietGoalMultiplier = 0.9
             } else if (dietGoal === "weight-gain") {
