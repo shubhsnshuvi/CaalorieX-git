@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { useAuth } from "@/lib/use-auth"
 import { Menu, X, Database } from "lucide-react"
 import { useState } from "react"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
 export function DashboardNav() {
   const pathname = usePathname()
@@ -27,12 +28,12 @@ export function DashboardNav() {
         <div className="flex items-center gap-2">
           <Link href="/" className="flex items-center gap-2">
             {/* Logo Image */}
-            <div className="relative h-10 w-10 overflow-hidden rounded-full bg-gradient-to-r from-green-500 to-blue-500 p-0.5">
-              <div className="absolute inset-0.5 rounded-full bg-white dark:bg-gray-950 flex items-center justify-center">
+            <div className="relative h-10 w-10 overflow-hidden rounded-full bg-gradient-to-r from-orange-500 to-black p-0.5">
+              <div className="absolute inset-0.5 rounded-full bg-black dark:bg-gray-950 flex items-center justify-center">
                 <Image src="/images/logo.png" alt="CalorieX Logo" width={36} height={36} className="object-cover" />
               </div>
             </div>
-            <span className="text-xl font-bold bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
+            <span className="text-xl font-bold bg-gradient-to-r from-orange-600 to-black bg-clip-text text-transparent">
               CalorieX
             </span>
           </Link>
@@ -47,6 +48,14 @@ export function DashboardNav() {
             }`}
           >
             Dashboard
+          </Link>
+          <Link
+            href="/daily-meal-tracker"
+            className={`text-sm font-medium transition-colors hover:text-primary ${
+              pathname === "/daily-meal-tracker" ? "text-primary" : "text-muted-foreground"
+            }`}
+          >
+            Daily Meal Diary
           </Link>
           <Link
             href="/food-database"
@@ -78,9 +87,19 @@ export function DashboardNav() {
 
         {/* Auth Buttons */}
         <div className="hidden md:flex items-center gap-4">
-          <Button variant="ghost" onClick={handleLogout}>
-            Logout
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost">Support</Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-56">
+              <DropdownMenuItem>
+                <Link href="/daily-meal-tracker" className="w-full">
+                  Contact Support
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleLogout}>Logout</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -96,6 +115,15 @@ export function DashboardNav() {
               onClick={toggleMenu}
             >
               Dashboard
+            </Link>
+            <Link
+              href="/daily-meal-tracker"
+              className={`text-sm font-medium transition-colors hover:text-primary ${
+                pathname === "/daily-meal-tracker" ? "text-primary" : "text-muted-foreground"
+              }`}
+              onClick={toggleMenu}
+            >
+              Daily Meal Diary
             </Link>
             <Link
               href="/food-database"

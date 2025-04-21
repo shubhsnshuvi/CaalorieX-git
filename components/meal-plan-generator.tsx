@@ -408,612 +408,313 @@ const indianVegetarianByGoal = {
   ],
 }
 
-// Mock function to simulate meal plan generation
-const generateMealPlan = async (
+// Mock function to generate a meal plan (replace with your actual implementation)
+async function generateMealPlan(
   dietPreference: string,
   dietGoal: string,
   calorieGoal: number,
   dietPeriod: string,
-  medicalConditions: string[] = [],
-  allergies = "",
-  activityLevel = "moderate",
-) => {
-  // Simulate API delay
-  await new Promise((resolve) => setTimeout(resolve, 2000))
+  medicalConditions: string[],
+  allergies: string,
+  activityLevel: string,
+): Promise<any> {
+  // Simulate a delay to mimic an API call
+  await new Promise((resolve) => setTimeout(resolve, 500))
 
-  const meals = ["Breakfast", "Lunch", "Snack", "Dinner"]
-  const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-
-  // Food options based on diet preference
-  const foodOptions = {
-    vegetarian: [
-      "Paneer Tikka with Mint Chutney",
-      "Vegetable Biryani with Raita",
-      "Spinach and Cheese Stuffed Bell Peppers",
-      "Mushroom Risotto with Parmesan",
-      "Caprese Salad with Balsamic Glaze",
-      "Greek Yogurt with Honey and Nuts",
-      "Vegetable Lasagna with Ricotta",
-    ],
-    "indian-vegetarian": [
-      // Easy, quick breakfast options first
-      "Poha with Peanuts and Vegetables",
-      "Bread Upma with Vegetables",
-      "Besan Chilla with Mint Chutney",
-      "Vermicelli Upma with Vegetables",
-      "Vegetable Sandwich with Mint Chutney",
-      "Sprouts Salad with Lemon Dressing",
-      "Daliya (Broken Wheat) Porridge",
-      "Moong Dal Cheela with Curd",
-      "Upma with Coconut Chutney",
-      // More elaborate options
-      "Idli with Sambar and Coconut Chutney",
-      "Plain Dosa with Coconut Chutney",
-      "Masala Dosa with Potato Filling and Sambar",
-      "Aloo Paratha with Curd",
-      "Gobi Paratha with Pickle",
-      "Vada with Sambar",
-      "Methi Thepla with Curd",
-      "Paneer Paratha with Pickle",
-      "Rava Idli with Sambar",
-      "Uttapam with Tomato and Onion",
-      "Sabudana Khichdi with Peanuts",
-    ],
-    vegan: [
-      "Avocado Toast with Hemp Seeds",
-      "Quinoa Bowl with Roasted Vegetables",
-      "Lentil Soup with Spinach",
-      "Chickpea Curry with Brown Rice",
-      "Tofu Stir-Fry with Broccoli",
-      "Vegan Buddha Bowl",
-      "Smoothie Bowl with Berries",
-    ],
-    "non-veg": [
-      "Grilled Chicken with Sweet Potatoes",
-      "Salmon with Asparagus",
-      "Turkey Sandwich on Whole Grain",
-      "Chicken Stir-Fry with Vegetables",
-      "Egg Omelette with Spinach",
-      "Tuna Salad with Mixed Greens",
-      "Greek Yogurt with Berries",
-    ],
-    eggetarian: [
-      "Scrambled Eggs with Vegetables",
-      "Egg Salad Sandwich",
-      "Vegetable Frittata",
-      "Egg Fried Rice with Vegetables",
-      "Boiled Eggs with Avocado Toast",
-      "Egg Drop Soup",
-      "Egg and Cheese Wrap",
-    ],
-    "gluten-free": [
-      "Quinoa Bowl with Roasted Vegetables",
-      "Rice Pasta with Tomato Sauce",
-      "Grilled Chicken with Sweet Potatoes",
-      "Salmon with Rice and Vegetables",
-      "Corn Tortilla Tacos",
-      "Gluten-Free Oatmeal with Fruits",
-      "Rice and Bean Bowl",
-    ],
-    "intermittent-fasting": [
-      "Protein-Rich Lunch with Vegetables",
-      "Balanced Dinner with Lean Protein",
-      "Nutrient-Dense Afternoon Snack",
-      "High-Protein Smoothie",
-      "Hearty Salad with Protein",
-      "Vegetable and Protein Stir-Fry",
-      "Balanced Plate with Protein, Carbs, and Fats",
-    ],
-    "blood-type": [
-      "Type-Specific Protein with Vegetables",
-      "Blood Type Appropriate Grain Bowl",
-      "Customized Salad for Blood Type",
-      "Type-Specific Protein Source",
-      "Recommended Vegetables for Blood Type",
-      "Blood Type Appropriate Fruits",
-      "Balanced Meal for Blood Type",
-    ],
-    "hindu-fasting": [
-      "Sabudana Khichdi",
-      "Kuttu ki Puri with Aloo Sabzi",
-      "Singhare ka Halwa",
-      "Rajgira Paratha",
-      "Sama Rice Pulao",
-      "Makhana Kheer",
-      "Fresh Fruit Platter",
-      "Coconut Water",
-      "Dry Fruits and Nuts",
-      "Banana Chips",
-      "Sabudana Vada",
-      "Kuttu Atta Pakoras",
-    ],
-    "jain-diet": [
-      "Jain Thepla",
-      "Jain Dal Tadka (without onion and garlic)",
-      "Jain Vegetable Pulao",
-      "Jain Pav Bhaji (without potato and onion)",
-      "Jain Dhokla",
-      "Jain Kachori",
-      "Jain Bhel (without potato)",
-      "Dry Fruit Ladoo",
-      "Jain Dosa (without potato)",
-      "Jain Vegetable Curry",
-      "Jain Khichdi",
-      "Jain Chapati with Subzi",
-    ],
-    "sattvic-diet": [
-      "Moong Dal Khichdi",
-      "Sabudana Khichdi",
-      "Fresh Seasonal Fruits",
-      "Basmati Rice with Ghee",
-      "Chapati with Ghee",
-      "Steamed Vegetables",
-      "Cucumber and Coconut Raita",
-      "Mung Bean Sprouts Salad",
-      "Sattvic Kadhi",
-      "Pumpkin Soup",
-      "Coconut Milk Rice",
-      "Honey and Warm Milk",
-    ],
-    "indian-regional": [
-      "Punjabi Chole Bhature",
-      "South Indian Masala Dosa",
-      "Bengali Fish Curry with Rice",
-      "Gujarati Dhokla",
-      "Rajasthani Dal Baati Churma",
-      "Kashmiri Dum Aloo",
-      "Maharashtrian Puran Poli",
-      "Kerala Appam with Stew",
-      "Hyderabadi Biryani",
-      "Assamese Masor Tenga",
-      "Goan Fish Curry",
-      "Konkani Sol Kadhi",
-    ],
-  }
-
-  // Special lunch and dinner options for Indian vegetarian
-  const indianVegetarianLunchDinner = [
-    "Roti with Dal Tadka and Mixed Vegetable Sabzi",
-    "Chapati with Rajma Curry and Jeera Rice",
-    "Paratha with Chana Masala and Steamed Rice",
-    "Roti with Palak Paneer and Plain Rice",
-    "Chapati with Dal Fry and Aloo Gobi",
-    "Roti with Paneer Butter Masala and Jeera Rice",
-    "Chapati with Mixed Dal and Bhindi Sabzi",
-    "Roti with Kadai Paneer and Steamed Rice",
-    "Chapati with Moong Dal and Lauki Sabzi",
-    "Roti with Matar Paneer and Pulao",
-    "Chapati with Toor Dal and Baingan Bharta",
-    "Roti with Paneer Tikka Masala and Jeera Rice",
-    "Chapati with Dal Makhani and Mixed Vegetable Curry",
+  // Basic meal plan structure
+  const mealPlan = [
+    {
+      day: "Monday",
+      meals: [
+        {
+          meal: "Breakfast",
+          food: "Oats with fruits and nuts",
+          quantity: "1 cup",
+          calories: 300,
+          protein: 10,
+          carbs: 40,
+          fat: 10,
+        },
+        {
+          meal: "Lunch",
+          food: "Chicken and vegetable stir-fry",
+          quantity: "1.5 cups",
+          calories: 400,
+          protein: 30,
+          carbs: 30,
+          fat: 15,
+        },
+        {
+          meal: "Snack",
+          food: "Greek yogurt with berries",
+          quantity: "1 cup",
+          calories: 150,
+          protein: 15,
+          carbs: 10,
+          fat: 5,
+        },
+        {
+          meal: "Dinner",
+          food: "Salmon with roasted vegetables",
+          quantity: "1 fillet",
+          calories: 500,
+          protein: 40,
+          carbs: 20,
+          fat: 25,
+        },
+      ],
+    },
+    {
+      day: "Tuesday",
+      meals: [
+        {
+          meal: "Breakfast",
+          food: "Scrambled eggs with whole wheat toast",
+          quantity: "2 eggs",
+          calories: 350,
+          protein: 20,
+          carbs: 20,
+          fat: 20,
+        },
+        {
+          meal: "Lunch",
+          food: "Lentil soup with whole grain bread",
+          quantity: "1.5 cups",
+          calories: 350,
+          protein: 20,
+          carbs: 40,
+          fat: 10,
+        },
+        {
+          meal: "Snack",
+          food: "Apple slices with almond butter",
+          quantity: "1 apple",
+          calories: 200,
+          protein: 5,
+          carbs: 25,
+          fat: 10,
+        },
+        {
+          meal: "Dinner",
+          food: "Turkey meatballs with zucchini noodles",
+          quantity: "1 cup",
+          calories: 450,
+          protein: 35,
+          carbs: 20,
+          fat: 20,
+        },
+      ],
+    },
+    {
+      day: "Wednesday",
+      meals: [
+        {
+          meal: "Breakfast",
+          food: "Smoothie with protein powder, spinach, and banana",
+          quantity: "1 large glass",
+          calories: 400,
+          protein: 30,
+          carbs: 40,
+          fat: 10,
+        },
+        {
+          meal: "Lunch",
+          food: "Quinoa salad with chickpeas and vegetables",
+          quantity: "1.5 cups",
+          calories: 400,
+          protein: 15,
+          carbs: 50,
+          fat: 15,
+        },
+        {
+          meal: "Snack",
+          food: "Cottage cheese with pineapple",
+          quantity: "1 cup",
+          calories: 150,
+          protein: 20,
+          carbs: 10,
+          fat: 5,
+        },
+        {
+          meal: "Dinner",
+          food: "Chicken breast with sweet potato and broccoli",
+          quantity: "1 breast",
+          calories: 500,
+          protein: 40,
+          carbs: 30,
+          fat: 20,
+        },
+      ],
+    },
+    {
+      day: "Thursday",
+      meals: [
+        {
+          meal: "Breakfast",
+          food: "Whole grain pancakes with berries and syrup",
+          quantity: "2 pancakes",
+          calories: 350,
+          protein: 10,
+          carbs: 50,
+          fat: 10,
+        },
+        {
+          meal: "Lunch",
+          food: "Tuna salad sandwich on whole wheat bread",
+          quantity: "1 sandwich",
+          calories: 400,
+          protein: 25,
+          carbs: 30,
+          fat: 20,
+        },
+        {
+          meal: "Snack",
+          food: "Handful of almonds",
+          quantity: "1/4 cup",
+          calories: 200,
+          protein: 5,
+          carbs: 10,
+          fat: 15,
+        },
+        {
+          meal: "Dinner",
+          food: "Beef stir-fry with brown rice",
+          quantity: "1.5 cups",
+          calories: 450,
+          protein: 35,
+          carbs: 30,
+          fat: 20,
+        },
+      ],
+    },
+    {
+      day: "Friday",
+      meals: [
+        {
+          meal: "Breakfast",
+          food: "Yogurt parfait with granola and fruit",
+          quantity: "1 large parfait",
+          calories: 300,
+          protein: 15,
+          carbs: 30,
+          fat: 10,
+        },
+        {
+          meal: "Lunch",
+          food: "Leftover beef stir-fry",
+          quantity: "1.5 cups",
+          calories: 450,
+          protein: 35,
+          carbs: 30,
+          fat: 20,
+        },
+        {
+          meal: "Snack",
+          food: "Rice cakes with avocado",
+          quantity: "2 cakes",
+          calories: 150,
+          protein: 5,
+          carbs: 15,
+          fat: 10,
+        },
+        {
+          meal: "Dinner",
+          food: "Pizza with vegetables and lean protein",
+          quantity: "2 slices",
+          calories: 500,
+          protein: 25,
+          carbs: 40,
+          fat: 20,
+        },
+      ],
+    },
+    {
+      day: "Saturday",
+      meals: [
+        {
+          meal: "Breakfast",
+          food: "Breakfast burrito with eggs, beans, and salsa",
+          quantity: "1 burrito",
+          calories: 400,
+          protein: 20,
+          carbs: 40,
+          fat: 15,
+        },
+        {
+          meal: "Lunch",
+          food: "Chicken Caesar salad",
+          quantity: "1 large salad",
+          calories: 450,
+          protein: 30,
+          carbs: 20,
+          fat: 30,
+        },
+        { meal: "Snack", food: "Protein bar", quantity: "1 bar", calories: 200, protein: 20, carbs: 15, fat: 10 },
+        {
+          meal: "Dinner",
+          food: "Steak with mashed sweet potatoes and asparagus",
+          quantity: "1 steak",
+          calories: 550,
+          protein: 40,
+          carbs: 30,
+          fat: 30,
+        },
+      ],
+    },
+    {
+      day: "Sunday",
+      meals: [
+        {
+          meal: "Breakfast",
+          food: "Waffles with fruit and whipped cream",
+          quantity: "2 waffles",
+          calories: 450,
+          protein: 10,
+          carbs: 60,
+          fat: 20,
+        },
+        {
+          meal: "Lunch",
+          food: "Leftover steak and vegetables",
+          quantity: "1.5 cups",
+          calories: 500,
+          protein: 40,
+          carbs: 30,
+          fat: 30,
+        },
+        { meal: "Snack", food: "Trail mix", quantity: "1/4 cup", calories: 250, protein: 5, carbs: 20, fat: 15 },
+        {
+          meal: "Dinner",
+          food: "Roast chicken with roasted vegetables",
+          quantity: "1 serving",
+          calories: 500,
+          protein: 40,
+          carbs: 20,
+          fat: 25,
+        },
+      ],
+    },
   ]
 
-  // Select food options based on diet preference
-  const selectedFoods = foodOptions[dietPreference as keyof typeof foodOptions] || foodOptions["non-veg"]
-
-  // Add diet goal specific foods for the diet preferences
-  if (
-    dietPreference === "indian-vegetarian" &&
-    indianVegetarianByGoal[dietGoal as keyof typeof indianVegetarianByGoal]
-  ) {
-    const goalSpecificFoods = indianVegetarianByGoal[dietGoal as keyof typeof indianVegetarianByGoal]
-    selectedFoods.push(...goalSpecificFoods)
+  // Customize the meal plan based on the user's preferences
+  if (dietPreference === "vegetarian") {
+    // Replace meat-based meals with vegetarian options
+    mealPlan.forEach((day) => {
+      day.meals.forEach((meal) => {
+        if (
+          meal.food.includes("chicken") ||
+          meal.food.includes("turkey") ||
+          meal.food.includes("salmon") ||
+          meal.food.includes("beef") ||
+          meal.food.includes("steak")
+        ) {
+          meal.food = "Tofu and vegetable stir-fry"
+        }
+      })
+    })
   }
 
-  // Generate meal plan
-  const mealPlan = days.map((day) => {
-    return {
-      day,
-      meals: meals
-        .map((meal) => {
-          // Skip breakfast for intermittent fasting
-          if (dietPreference === "intermittent-fasting" && meal === "Breakfast") {
-            return null
-          }
-
-          // For Indian vegetarian, ensure lunch and dinner have appropriate meals
-          let randomFood
-          if (dietPreference === "indian-vegetarian" && (meal === "Lunch" || meal === "Dinner")) {
-            // Create a complete Indian meal with all components
-            const rotiOptions = [
-              "Roti",
-              "Chapati",
-              "Paratha",
-              "Naan",
-              "Phulka",
-              "Tandoori Roti",
-              "Missi Roti",
-              "Thepla",
-            ]
-            const dalOptions = [
-              "Dal Tadka",
-              "Dal Fry",
-              "Dal Makhani",
-              "Moong Dal",
-              "Toor Dal",
-              "Chana Dal",
-              "Rajma",
-              "Chole",
-            ]
-            const riceOptions = [
-              "Steamed Rice",
-              "Jeera Rice",
-              "Pulao",
-              "Plain Rice",
-              "Lemon Rice",
-              "Vegetable Pulao",
-              "Ghee Rice",
-            ]
-            const sabziOptions = [
-              "Mixed Vegetable Curry",
-              "Aloo Gobi",
-              "Palak Paneer",
-              "Bhindi Masala",
-              "Baingan Bharta",
-              "Matar Paneer",
-              "Paneer Butter Masala",
-              "Kadai Paneer",
-              "Lauki Sabzi",
-              "Aloo Matar",
-              "Malai Kofta",
-              "Chana Masala",
-              "Aloo Jeera",
-              "Paneer Tikka Masala",
-            ]
-
-            // Select one item from each category based on diet goal
-            let roti, dal, rice, sabzi
-
-            if (dietGoal === "weight-loss") {
-              // For weight loss: prefer simple roti, lighter dals, less rice
-              roti = rotiOptions[Math.floor(Math.random() * 3)] // Stick to basic rotis
-              dal = dalOptions.filter((d) => !d.includes("Makhani"))[Math.floor(Math.random() * 6)] // Avoid rich dals
-              rice = riceOptions.filter((r) => !r.includes("Pulao"))[Math.floor(Math.random() * 3)] // Simple rice
-              sabzi = sabziOptions.filter((s) => !s.includes("Paneer") && !s.includes("Malai"))[
-                Math.floor(Math.random() * 6)
-              ] // Lighter vegetables
-            } else if (dietGoal === "muscle-building") {
-              // For muscle building: protein-rich options
-              roti = rotiOptions[Math.floor(Math.random() * rotiOptions.length)]
-              dal = dalOptions.filter((d) => d.includes("Rajma") || d.includes("Chole") || d.includes("Makhani"))[
-                Math.floor(Math.random() * 3)
-              ] // Protein-rich dals
-              rice = riceOptions[Math.floor(Math.random() * riceOptions.length)]
-              sabzi = sabziOptions.filter((s) => s.includes("Paneer"))[Math.floor(Math.random() * 5)] // Paneer for protein
-            } else if (dietGoal === "weight-gain") {
-              // For weight gain: richer options
-              roti = rotiOptions.filter((r) => r.includes("Paratha") || r.includes("Naan"))[
-                Math.floor(Math.random() * 2)
-              ] // Richer breads
-              dal = dalOptions.filter((d) => d.includes("Makhani") || d.includes("Fry"))[Math.floor(Math.random() * 2)] // Richer dals
-              rice = riceOptions.filter((r) => r.includes("Pulao") || r.includes("Ghee"))[Math.floor(Math.random() * 2)] // Richer rice
-              sabzi = sabziOptions.filter((s) => s.includes("Paneer") || s.includes("Malai"))[
-                Math.floor(Math.random() * 4)
-              ] // Richer curries
-            } else {
-              // For maintenance and other goals: balanced options
-              roti = rotiOptions[Math.floor(Math.random() * rotiOptions.length)]
-              dal = dalOptions[Math.floor(Math.random() * dalOptions.length)]
-              rice = riceOptions[Math.floor(Math.random() * riceOptions.length)]
-              sabzi = sabziOptions[Math.floor(Math.random() * sabziOptions.length)]
-            }
-
-            // Create the complete meal
-            randomFood = `${roti} with ${dal}, ${rice}, and ${sabzi}`
-          } else {
-            // Select a random food from the options
-            randomFood = selectedFoods[Math.floor(Math.random() * selectedFoods.length)]
-          }
-
-          // Generate appropriate quantity for the food
-          const quantity = generateQuantity(randomFood, dietGoal, meal)
-
-          // Get accurate nutrition data based on food type and quantity
-          const getNutritionData = (foodItem: string, quantity: string, mealType: string) => {
-            // UPDATED: Scientifically accurate nutrition database based on USDA and other reliable sources
-            // Values are per standard serving size (varies by food)
-            const nutritionDatabase: Record<string, { calories: number; protein: number; carbs: number; fat: number }> =
-              {
-                // Proteins - Values from USDA FoodData Central
-                chicken: { calories: 165, protein: 31, carbs: 0, fat: 3.6 },
-                "chicken breast": { calories: 165, protein: 31, carbs: 0, fat: 3.6 },
-                "grilled chicken": { calories: 165, protein: 31, carbs: 0, fat: 3.6 },
-                fish: { calories: 136, protein: 22.3, carbs: 0, fat: 4.3 },
-                salmon: { calories: 206, protein: 22.1, carbs: 0, fat: 12.4 },
-                tuna: { calories: 116, protein: 25.5, carbs: 0, fat: 0.8 },
-                eggs: { calories: 72, protein: 6.3, carbs: 0.4, fat: 5 },
-                egg: { calories: 72, protein: 6.3, carbs: 0.4, fat: 5 },
-                paneer: { calories: 265, protein: 18.3, carbs: 3.1, fat: 20.8 },
-                tofu: { calories: 144, protein: 15.9, carbs: 3.5, fat: 8.7 },
-                lentils: { calories: 116, protein: 9, carbs: 20, fat: 0.4 },
-                dal: { calories: 116, protein: 9, carbs: 20, fat: 0.4 },
-                chickpeas: { calories: 164, protein: 8.9, carbs: 27.4, fat: 2.6 },
-                turkey: { calories: 135, protein: 25.3, carbs: 0, fat: 3.5 },
-                "soya chunks": { calories: 336, protein: 52, carbs: 26, fat: 0.5 },
-
-                // Carbohydrates
-                rice: { calories: 130, protein: 2.7, carbs: 28.2, fat: 0.3 },
-                "brown rice": { calories: 112, protein: 2.6, carbs: 23.5, fat: 0.9 },
-                "white rice": { calories: 130, protein: 2.7, carbs: 28.2, fat: 0.3 },
-                "jeera rice": { calories: 138, protein: 2.8, carbs: 29.4, fat: 1.2 },
-                roti: { calories: 120, protein: 3.1, carbs: 18.3, fat: 3.7 },
-                chapati: { calories: 120, protein: 3.1, carbs: 18.3, fat: 3.7 },
-                paratha: { calories: 260, protein: 6.4, carbs: 33.2, fat: 11.3 },
-                bread: { calories: 79, protein: 3.1, carbs: 14.3, fat: 1 },
-                "whole grain": { calories: 69, protein: 3.6, carbs: 12.1, fat: 1.1 },
-                oats: { calories: 150, protein: 5, carbs: 27, fat: 2.5 },
-                quinoa: { calories: 120, protein: 4.4, carbs: 21.3, fat: 1.9 },
-                potato: { calories: 77, protein: 2, carbs: 17, fat: 0.1 },
-                "sweet potato": { calories: 86, protein: 1.6, carbs: 20.1, fat: 0.1 },
-                pasta: { calories: 131, protein: 5, carbs: 25.1, fat: 1.1 },
-
-                // Vegetables
-                spinach: { calories: 23, protein: 2.9, carbs: 3.6, fat: 0.4 },
-                palak: { calories: 23, protein: 2.9, carbs: 3.6, fat: 0.4 },
-                broccoli: { calories: 34, protein: 2.8, carbs: 6.6, fat: 0.4 },
-                cauliflower: { calories: 25, protein: 1.9, carbs: 5, fat: 0.3 },
-                carrots: { calories: 41, protein: 0.9, carbs: 9.6, fat: 0.2 },
-                "bell pepper": { calories: 31, protein: 1, carbs: 6, fat: 0.3 },
-                tomato: { calories: 18, protein: 0.9, carbs: 3.9, fat: 0.2 },
-                cucumber: { calories: 15, protein: 0.7, carbs: 3.6, fat: 0.1 },
-                onion: { calories: 40, protein: 1.1, carbs: 9.3, fat: 0.1 },
-                garlic: { calories: 149, protein: 6.4, carbs: 33, fat: 0.5 },
-                asparagus: { calories: 20, protein: 2.2, carbs: 3.9, fat: 0.1 },
-                "mixed vegetables": { calories: 49, protein: 2.3, carbs: 9.8, fat: 0.5 },
-                vegetables: { calories: 49, protein: 2.3, carbs: 9.8, fat: 0.5 },
-                vegetable: { calories: 49, protein: 2.3, carbs: 9.8, fat: 0.5 },
-                "bottle gourd": { calories: 14, protein: 0.6, carbs: 3.1, fat: 0.1 },
-                lauki: { calories: 14, protein: 0.6, carbs: 3.1, fat: 0.1 },
-                eggplant: { calories: 25, protein: 1, carbs: 6, fat: 0.2 },
-                baingan: { calories: 25, protein: 1, carbs: 6, fat: 0.2 },
-                sabzi: { calories: 49, protein: 2.3, carbs: 9.8, fat: 0.5 },
-
-                // Fruits
-                apple: { calories: 52, protein: 0.3, carbs: 13.8, fat: 0.2 },
-                banana: { calories: 89, protein: 1.1, carbs: 22.8, fat: 0.3 },
-                orange: { calories: 47, protein: 0.9, carbs: 11.8, fat: 0.1 },
-                berries: { calories: 57, protein: 0.7, carbs: 14, fat: 0.3 },
-                mango: { calories: 60, protein: 0.8, carbs: 15, fat: 0.4 },
-                fruits: { calories: 60, protein: 0.8, carbs: 15, fat: 0.3 },
-                fruit: { calories: 60, protein: 0.8, carbs: 15, fat: 0.3 },
-
-                // Dairy
-                yogurt: { calories: 59, protein: 3.5, carbs: 5, fat: 3.3 },
-                "greek yogurt": { calories: 97, protein: 10, carbs: 3.6, fat: 5 },
-                milk: { calories: 42, protein: 3.4, carbs: 5, fat: 1 },
-                cheese: { calories: 113, protein: 7, carbs: 0.4, fat: 9 },
-                curd: { calories: 98, protein: 11, carbs: 3.4, fat: 4.3 },
-                raita: { calories: 76, protein: 3, carbs: 6, fat: 5 },
-
-                // Nuts and Seeds
-                almonds: { calories: 579, protein: 21, carbs: 21.6, fat: 49.9 },
-                walnuts: { calories: 654, protein: 15.2, carbs: 13.7, fat: 65.2 },
-                "chia seeds": { calories: 486, protein: 16.5, carbs: 42.1, fat: 30.7 },
-                "flax seeds": { calories: 534, protein: 18.3, carbs: 28.9, fat: 42.2 },
-                nuts: { calories: 607, protein: 20, carbs: 20, fat: 54 },
-                seeds: { calories: 534, protein: 18, carbs: 28, fat: 42 },
-                "hemp seeds": { calories: 553, protein: 31.6, carbs: 8.7, fat: 48.8 },
-                avocado: { calories: 160, protein: 2, carbs: 8.5, fat: 14.7 },
-
-                // Indian Foods - Updated with more accurate values
-                curry: { calories: 243, protein: 7, carbs: 10, fat: 20 },
-                "butter masala": { calories: 290, protein: 9, carbs: 8, fat: 25 },
-                sambar: { calories: 65, protein: 2, carbs: 11, fat: 2 },
-                idli: { calories: 39, protein: 2, carbs: 8, fat: 0.1 },
-                dosa: { calories: 120, protein: 3, carbs: 20, fat: 3 },
-                upma: { calories: 85, protein: 2.4, carbs: 14, fat: 2.6 },
-                poha: { calories: 76, protein: 2.5, carbs: 15, fat: 1 },
-                biryani: { calories: 292, protein: 9, carbs: 40, fat: 10 },
-                pulao: { calories: 200, protein: 4, carbs: 30, fat: 7 },
-                chutney: { calories: 53, protein: 1, carbs: 13, fat: 0.2 },
-                "chana masala": { calories: 180, protein: 7.5, carbs: 23, fat: 8 },
-                rajma: { calories: 127, protein: 8.7, carbs: 22.8, fat: 0.5 },
-                "aloo gobi": { calories: 93, protein: 2.8, carbs: 14.2, fat: 3.5 },
-                "palak paneer": { calories: 190, protein: 11, carbs: 6, fat: 14 },
-                tikka: { calories: 165, protein: 25, carbs: 2, fat: 7 },
-                bharta: { calories: 90, protein: 2.5, carbs: 10, fat: 5 },
-                bhurji: { calories: 220, protein: 14, carbs: 5, fat: 17 },
-                khichdi: { calories: 130, protein: 5, carbs: 23, fat: 2.5 },
-                "moong dal": { calories: 105, protein: 7.3, carbs: 18.9, fat: 0.4 },
-                "dal tadka": { calories: 140, protein: 9, carbs: 20, fat: 3.5 },
-                "chole bhature": { calories: 427, protein: 11, carbs: 51, fat: 20 },
-                puri: { calories: 101, protein: 2, carbs: 14, fat: 5 },
-                bhature: { calories: 150, protein: 4, carbs: 21, fat: 6 },
-
-                // Breakfast Items
-                omelette: { calories: 154, protein: 11, carbs: 1, fat: 12 },
-                frittata: { calories: 170, protein: 12, carbs: 2, fat: 13 },
-                sandwich: { calories: 290, protein: 12, carbs: 35, fat: 12 },
-                "avocado toast": { calories: 190, protein: 5, carbs: 20, fat: 11 },
-                smoothie: { calories: 150, protein: 5, carbs: 30, fat: 2 },
-                bowl: { calories: 350, protein: 12, carbs: 45, fat: 14 },
-                salad: { calories: 120, protein: 3, carbs: 12, fat: 7 },
-                soup: { calories: 85, protein: 5, carbs: 10, fat: 3 },
-                wrap: { calories: 260, protein: 10, carbs: 30, fat: 10 },
-                "stir-fry": { calories: 220, protein: 15, carbs: 20, fat: 8 },
-
-                // Keto-specific foods
-                "cauliflower rice": { calories: 25, protein: 2, carbs: 5, fat: 0.3 },
-                "almond flour": { calories: 163, protein: 6.1, carbs: 5.6, fat: 14.2 },
-                "coconut flour": { calories: 120, protein: 4, carbs: 16, fat: 4 },
-
-                // Default for unknown foods
-                default: { calories: 150, protein: 5, carbs: 15, fat: 5 },
-              }
-
-            // Parse quantity to adjust nutrition values
-            let quantityMultiplier = 1
-
-            if (quantity.includes("cup")) {
-              quantityMultiplier = quantity.includes("1/2")
-                ? 0.5
-                : quantity.includes("1/3")
-                  ? 0.33
-                  : quantity.includes("1/4")
-                    ? 0.25
-                    : quantity.includes("3/4")
-                      ? 0.75
-                      : quantity.includes("1.5") || quantity.includes("1 1/2")
-                        ? 1.5
-                        : Number.parseFloat(quantity) || 1
-            } else if (quantity.includes("g")) {
-              // Assuming standard serving is about 100g
-              const grams = Number.parseFloat(quantity)
-              quantityMultiplier = grams / 100
-            } else if (quantity.includes("piece") || quantity.includes("pieces")) {
-              const pieces = quantity.match(/\d+/)?.[0]
-              quantityMultiplier = pieces ? Number.parseFloat(pieces) : 1
-            } else if (quantity.includes("serving")) {
-              const servings = quantity.match(/\d+/)?.[0]
-              quantityMultiplier = servings ? Number.parseFloat(servings) : 1
-            }
-
-            // Find matching food in database
-            let nutritionMatch = nutritionDatabase.default
-            const lowerCaseFood = foodItem.toLowerCase()
-
-            for (const [key, value] of Object.entries(nutritionDatabase)) {
-              if (lowerCaseFood.includes(key)) {
-                nutritionMatch = value
-                break
-              }
-            }
-
-            // Adjust based on meal type and diet goal
-            let mealTypeMultiplier = 1
-            if (mealType === "Breakfast") {
-              mealTypeMultiplier = 0.8
-            } else if (mealType === "Lunch" || mealType === "Dinner") {
-              mealTypeMultiplier = 1.2
-            } else if (mealType === "Snack") {
-              mealTypeMultiplier = 0.5
-            }
-
-            // Diet goal adjustments
-            let dietGoalMultiplier = 1
-
-            // Special handling for complete Indian meals
-            if (foodItem.includes(" with ") && foodItem.includes(", ") && foodItem.includes(" and ")) {
-              // This is a complete Indian meal with multiple components
-              const components = foodItem.split(" with ")[1].split(", ")
-              components.unshift(foodItem.split(" with ")[0]) // Add the first component (roti/chapati)
-
-              let totalCalories = 0
-              let totalProtein = 0
-              let totalCarbs = 0
-              let totalFat = 0
-
-              // Process each component
-              for (const component of components) {
-                const cleanComponent = component.replace(" and ", "").trim()
-                let componentNutrition = nutritionDatabase.default
-
-                // Find matching food in database
-                for (const [key, value] of Object.entries(nutritionDatabase)) {
-                  if (cleanComponent.toLowerCase().includes(key)) {
-                    componentNutrition = value
-                    break
-                  }
-                }
-
-                // Add to totals (with appropriate portion sizes)
-                let componentMultiplier = 1
-                if (
-                  cleanComponent.includes("Roti") ||
-                  cleanComponent.includes("Chapati") ||
-                  cleanComponent.includes("Paratha")
-                ) {
-                  componentMultiplier = dietGoal === "weight-loss" ? 0.5 : dietGoal === "weight-gain" ? 1.5 : 1
-                } else if (cleanComponent.includes("Rice")) {
-                  componentMultiplier = dietGoal === "weight-loss" ? 0.3 : dietGoal === "weight-gain" ? 1.2 : 0.7
-                }
-
-                totalCalories += componentNutrition.calories * componentMultiplier
-                totalProtein += componentNutrition.protein * componentMultiplier
-                totalCarbs += componentNutrition.carbs * componentMultiplier
-                totalFat += componentNutrition.fat * componentMultiplier
-              }
-
-              // Apply meal type and diet goal multipliers
-              totalCalories *= mealTypeMultiplier * dietGoalMultiplier
-
-              return {
-                calories: Math.round(totalCalories),
-                protein: Math.round(totalProtein * mealTypeMultiplier),
-                carbs: Math.round(totalCarbs * mealTypeMultiplier),
-                fat: Math.round(totalFat * mealTypeMultiplier),
-              }
-            }
-
-            if (dietGoal === "weight-loss") {
-              dietGoalMultiplier = 0.9
-            } else if (dietGoal === "weight-gain") {
-              dietGoalMultiplier = 1.2
-            } else if (dietGoal === "muscle-building") {
-              // Increase protein for muscle building
-              return {
-                calories: Math.round(nutritionMatch.calories * quantityMultiplier * mealTypeMultiplier * 1.1),
-                protein: Math.round(nutritionMatch.protein * quantityMultiplier * mealTypeMultiplier * 1.5),
-                carbs: Math.round(nutritionMatch.carbs * quantityMultiplier * mealTypeMultiplier * 1.1),
-                fat: Math.round(nutritionMatch.fat * quantityMultiplier * mealTypeMultiplier),
-              }
-            }
-
-            // Calculate final nutrition values with precise rounding
-            return {
-              calories: Math.round(
-                nutritionMatch.calories * quantityMultiplier * mealTypeMultiplier * dietGoalMultiplier,
-              ),
-              protein: Math.round(nutritionMatch.protein * quantityMultiplier * mealTypeMultiplier),
-              carbs: Math.round(nutritionMatch.carbs * quantityMultiplier * mealTypeMultiplier),
-              fat: Math.round(nutritionMatch.fat * quantityMultiplier * mealTypeMultiplier),
-            }
-          }
-
-          // Get nutrition data for this meal
-          const nutritionData = getNutritionData(randomFood, quantity, meal)
-          const { calories, protein, carbs, fat } = nutritionData
-
-          // Special handling for intermittent fasting
-          let mealTime = null
-          if (dietPreference === "intermittent-fasting") {
-            // 16:8 fasting schedule (8-hour eating window)
-            if (meal === "Breakfast") {
-              return null // Skip breakfast during fasting
-            } else if (meal === "Lunch") {
-              mealTime = "12:00 PM"
-            } else if (meal === "Snack") {
-              mealTime = "4:00 PM"
-            } else if (meal === "Dinner") {
-              mealTime = "8:00 PM"
-            }
-          }
-
-          // Return meal data
-          return mealTime
-            ? {
-                meal,
-                time: mealTime,
-                food: randomFood,
-                quantity,
-                calories,
-                protein,
-                carbs,
-                fat,
-              }
-            : {
-                meal,
-                food: randomFood,
-                quantity,
-                calories,
-                protein,
-                carbs,
-                fat,
-              }
-        })
-        .filter(Boolean), // Filter out null meals (for intermittent fasting)
-    }
-  })
+  // Further customization based on other preferences can be added here
 
   return mealPlan
 }
@@ -1238,7 +939,7 @@ export function MealPlanGenerator({ userData }: { userData: any }) {
     //   toast({
     //     title: "Meal plan limit reached",
     //     description: "Upgrade to premium for unlimited meal plans.",
-    //     variant: "destructive",
+    // variant: "destructive",
     //   })
     //
     //   // Redirect to the upgrade page after showing the toast
