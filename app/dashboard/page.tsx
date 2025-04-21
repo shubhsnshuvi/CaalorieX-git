@@ -8,13 +8,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { EnhancedMealPlanGenerator } from "@/components/enhanced-meal-plan-generator"
 import { MealPlanHistory } from "@/components/meal-plan-history"
 import { UserProfile } from "@/components/user-profile"
-import { Chatbot } from "@/components/chatbot"
+import { DailyMealTracker } from "@/components/daily-meal-tracker"
 import { DietitianCard } from "@/components/dietitian-card"
 import { doc, getDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
-import { Target, History, User2, MessageCircleQuestion, Crown, Database, Sparkles } from "lucide-react"
+import { Target, History, User2, Crown, Database, Sparkles, Utensils } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { AlertCircle } from "lucide-react"
 
@@ -151,13 +151,13 @@ export default function DashboardPage() {
         </div>
         {userData?.subscription === "free" ? (
           <Link href="/dashboard/upgrade">
-            <Button className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white shadow-md">
+            <Button className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-black shadow-md">
               <Crown className="mr-2 h-4 w-4" />
               Upgrade to Premium
             </Button>
           </Link>
         ) : (
-          <Badge className="bg-gradient-to-r from-amber-500 to-amber-600 text-white px-3 py-1 text-sm shadow-sm">
+          <Badge className="bg-gradient-to-r from-orange-500 to-orange-600 text-black px-3 py-1 text-sm shadow-sm">
             <Crown className="mr-2 h-4 w-4" />
             Premium Member
           </Badge>
@@ -168,9 +168,9 @@ export default function DashboardPage() {
       <DietitianCard isPremium={userData?.subscription === "premium"} />
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="overflow-hidden border-0 shadow-md bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-950">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-gradient-to-r from-green-50 to-green-100 dark:from-green-950 dark:to-green-900 border-b">
-            <CardTitle className="text-sm font-medium text-green-800 dark:text-green-300">Subscription</CardTitle>
+        <Card className="overflow-hidden border-0 shadow-md bg-gradient-to-br from-gray-900 to-black">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-gradient-to-r from-orange-500 to-orange-600 border-b">
+            <CardTitle className="text-sm font-medium text-black">Subscription</CardTitle>
             <svg
               xmlns="http://www.w3.org/2000/svg"
               viewBox="0 0 24 24"
@@ -179,21 +179,21 @@ export default function DashboardPage() {
               strokeLinecap="round"
               strokeLinejoin="round"
               strokeWidth="2"
-              className="h-4 w-4 text-green-600 dark:text-green-400"
+              className="h-4 w-4 text-black"
             >
               <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
             </svg>
           </CardHeader>
           <CardContent className="p-6">
-            <div className="text-2xl font-bold capitalize">{userData?.subscription || "Free"}</div>
-            <p className="text-xs text-muted-foreground mt-1">
+            <div className="text-2xl font-bold capitalize text-gray-200">{userData?.subscription || "Free"}</div>
+            <p className="text-xs text-gray-400 mt-1">
               {userData?.subscription === "premium" ? "Unlimited meal plans" : "Unlimited meal plans for testing"}
             </p>
           </CardContent>
         </Card>
-        <Card className="overflow-hidden border-0 shadow-md bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-950">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 border-b">
-            <CardTitle className="text-sm font-medium text-blue-800 dark:text-blue-300">Diet Preference</CardTitle>
+        <Card className="overflow-hidden border-0 shadow-md bg-gradient-to-br from-gray-900 to-black">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-gradient-to-r from-orange-500 to-orange-600 border-b">
+            <CardTitle className="text-sm font-medium text-black">Diet Preference</CardTitle>
             <svg
               xmlns="http://www.w3.org/2000/svg"
               viewBox="0 0 24 24"
@@ -202,7 +202,7 @@ export default function DashboardPage() {
               strokeLinecap="round"
               strokeLinejoin="round"
               strokeWidth="2"
-              className="h-4 w-4 text-blue-600 dark:text-blue-400"
+              className="h-4 w-4 text-black"
             >
               <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2" />
               <path d="M7 2v20" />
@@ -210,7 +210,7 @@ export default function DashboardPage() {
             </svg>
           </CardHeader>
           <CardContent className="p-6">
-            <div className="text-2xl font-bold capitalize">
+            <div className="text-2xl font-bold capitalize text-gray-200">
               {userData?.dietPreference === "indian-vegetarian"
                 ? "Indian Vegetarian"
                 : userData?.dietPreference === "hindu-fasting"
@@ -223,32 +223,32 @@ export default function DashboardPage() {
                         ? "Indian Regional"
                         : userData?.dietPreference || "Not set"}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">Your current diet preference</p>
+            <p className="text-xs text-gray-400 mt-1">Your current diet preference</p>
           </CardContent>
         </Card>
-        <Card className="overflow-hidden border-0 shadow-md bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-950">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-gradient-to-r from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900 border-b">
-            <CardTitle className="text-sm font-medium text-purple-800 dark:text-purple-300">Diet Goal</CardTitle>
-            <Target className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+        <Card className="overflow-hidden border-0 shadow-md bg-gradient-to-br from-gray-900 to-black">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-gradient-to-r from-orange-500 to-orange-600 border-b">
+            <CardTitle className="text-sm font-medium text-black">Diet Goal</CardTitle>
+            <Target className="h-4 w-4 text-black" />
           </CardHeader>
           <CardContent className="p-6">
-            <div className="text-2xl font-bold">{formatDietGoal(userData?.dietGoal)}</div>
-            <p className="text-xs text-muted-foreground mt-1">Your current diet goal</p>
+            <div className="text-2xl font-bold text-gray-200">{formatDietGoal(userData?.dietGoal)}</div>
+            <p className="text-xs text-gray-400 mt-1">Your current diet goal</p>
           </CardContent>
         </Card>
-        <Card className="overflow-hidden border-0 shadow-md bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-950">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-gradient-to-r from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900 border-b">
-            <CardTitle className="text-sm font-medium text-purple-800 dark:text-purple-300">Data Sources</CardTitle>
-            <Database className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+        <Card className="overflow-hidden border-0 shadow-md bg-gradient-to-br from-gray-900 to-black">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-gradient-to-r from-orange-500 to-orange-600 border-b">
+            <CardTitle className="text-sm font-medium text-black">Data Sources</CardTitle>
+            <Database className="h-4 w-4 text-black" />
           </CardHeader>
           <CardContent className="p-6">
-            <div className="text-2xl font-bold">USDA + IFCT</div>
-            <p className="text-xs text-muted-foreground mt-1">Comprehensive nutrition data from both databases</p>
+            <div className="text-2xl font-bold text-gray-200">USDA + IFCT</div>
+            <p className="text-xs text-gray-400 mt-1">Comprehensive nutrition data from both databases</p>
           </CardContent>
         </Card>
-        <Card className={`overflow-hidden border-0 shadow-md ${bmiStatus ? bmiStatus.color : ""}`}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 border-b">
-            <CardTitle className="text-sm font-medium">BMI</CardTitle>
+        <Card className={`overflow-hidden border-0 shadow-md bg-gradient-to-br from-gray-900 to-black`}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-gradient-to-r from-orange-500 to-orange-600 border-b">
+            <CardTitle className="text-sm font-medium text-black">BMI</CardTitle>
             <svg
               xmlns="http://www.w3.org/2000/svg"
               viewBox="0 0 24 24"
@@ -257,56 +257,54 @@ export default function DashboardPage() {
               strokeLinecap="round"
               strokeLinejoin="round"
               strokeWidth="2"
-              className="h-4 w-4 text-muted-foreground"
+              className="h-4 w-4 text-black"
             >
               <rect width="20" height="14" x="2" y="5" rx="2" />
               <path d="M2 10h20" />
             </svg>
           </CardHeader>
           <CardContent className="p-6">
-            <div className="text-2xl font-bold">{bmi ? bmi.toFixed(1) : "N/A"}</div>
+            <div className="text-2xl font-bold text-gray-200">{bmi ? bmi.toFixed(1) : "N/A"}</div>
             {bmiStatus && (
               <div className="mt-1">
                 <Badge className={`font-normal ${bmiStatus.badgeColor}`}>{bmiStatus.status}</Badge>
               </div>
             )}
-            <p className="text-xs text-muted-foreground mt-1">
-              kg/m² ({userData?.gender === "female" ? "Female" : "Male"})
-            </p>
+            <p className="text-xs text-gray-400 mt-1">kg/m² ({userData?.gender === "female" ? "Female" : "Male"})</p>
           </CardContent>
         </Card>
       </div>
 
       <Tabs defaultValue="enhanced-meal-plan" className="w-full">
         {/* Mobile-friendly tabs with icons */}
-        <TabsList className="grid w-full grid-cols-4 h-auto mb-6 p-1 bg-muted/80 backdrop-blur-sm sticky top-[65px] z-10 shadow-sm">
+        <TabsList className="grid w-full grid-cols-4 h-auto mb-6 p-1 bg-gray-800/80 backdrop-blur-sm sticky top-[65px] z-10 shadow-sm">
           <TabsTrigger
             value="enhanced-meal-plan"
-            className="flex flex-col py-3 px-1 h-auto text-xs sm:text-sm sm:flex-row sm:items-center sm:gap-2 data-[state=active]:bg-white dark:data-[state=active]:bg-gray-800 data-[state=active]:shadow-sm rounded-md transition-all"
+            className="flex flex-col py-3 px-1 h-auto text-xs sm:text-sm sm:flex-row sm:items-center sm:gap-2 data-[state=active]:bg-gray-900 dark:data-[state=active]:bg-gray-800 data-[state=active]:shadow-sm data-[state=active]:text-orange-500 rounded-md transition-all"
           >
             <Sparkles className="h-4 w-4 mx-auto sm:mx-0" />
             <span className="mt-1 sm:mt-0">Meal Plan</span>
           </TabsTrigger>
           <TabsTrigger
             value="history"
-            className="flex flex-col py-3 px-1 h-auto text-xs sm:text-sm sm:flex-row sm:items-center sm:gap-2 data-[state=active]:bg-white dark:data-[state=active]:bg-gray-800 data-[state=active]:shadow-sm rounded-md transition-all"
+            className="flex flex-col py-3 px-1 h-auto text-xs sm:text-sm sm:flex-row sm:items-center sm:gap-2 data-[state=active]:bg-gray-900 dark:data-[state=active]:bg-gray-800 data-[state=active]:shadow-sm data-[state=active]:text-orange-500 rounded-md transition-all"
           >
             <History className="h-4 w-4 mx-auto sm:mx-0" />
             <span className="mt-1 sm:mt-0">History</span>
           </TabsTrigger>
           <TabsTrigger
+            value="daily-meal-tracker"
+            className="flex flex-col py-3 px-1 h-auto text-xs sm:text-sm sm:flex-row sm:items-center sm:gap-2 data-[state=active]:bg-gray-900 dark:data-[state=active]:bg-gray-800 data-[state=active]:shadow-sm data-[state=active]:text-orange-500 rounded-md transition-all"
+          >
+            <Utensils className="h-4 w-4 mx-auto sm:mx-0" />
+            <span className="mt-1 sm:mt-0">Daily Meal Diary</span>
+          </TabsTrigger>
+          <TabsTrigger
             value="profile"
-            className="flex flex-col py-3 px-1 h-auto text-xs sm:text-sm sm:flex-row sm:items-center sm:gap-2 data-[state=active]:bg-white dark:data-[state=active]:bg-gray-800 data-[state=active]:shadow-sm rounded-md transition-all"
+            className="flex flex-col py-3 px-1 h-auto text-xs sm:text-sm sm:flex-row sm:items-center sm:gap-2 data-[state=active]:bg-gray-900 dark:data-[state=active]:bg-gray-800 data-[state=active]:shadow-sm data-[state=active]:text-orange-500 rounded-md transition-all"
           >
             <User2 className="h-4 w-4 mx-auto sm:mx-0" />
             <span className="mt-1 sm:mt-0">Profile</span>
-          </TabsTrigger>
-          <TabsTrigger
-            value="support"
-            className="flex flex-col py-3 px-1 h-auto text-xs sm:text-sm sm:flex-row sm:items-center sm:gap-2 data-[state=active]:bg-white dark:data-[state=active]:bg-gray-800 data-[state=active]:shadow-sm rounded-md transition-all"
-          >
-            <MessageCircleQuestion className="h-4 w-4 mx-auto sm:mx-0" />
-            <span className="mt-1 sm:mt-0">Support</span>
           </TabsTrigger>
         </TabsList>
         <TabsContent value="enhanced-meal-plan" className="space-y-4 mt-2">
@@ -315,11 +313,11 @@ export default function DashboardPage() {
         <TabsContent value="history" className="space-y-4 mt-2">
           <MealPlanHistory />
         </TabsContent>
+        <TabsContent value="daily-meal-tracker" className="space-y-4 mt-2">
+          <DailyMealTracker />
+        </TabsContent>
         <TabsContent value="profile" className="space-y-4 mt-2">
           <UserProfile userData={userData} onProfileUpdate={refreshUserData} />
-        </TabsContent>
-        <TabsContent value="support" className="space-y-4 mt-2">
-          <Chatbot />
         </TabsContent>
       </Tabs>
     </div>

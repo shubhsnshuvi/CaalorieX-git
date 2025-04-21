@@ -5,47 +5,47 @@
 @layer base {
   :root {
     --background: 0 0% 0%; /* Black */
-    --foreground: 0 0% 100%; /* White */
-    --card: 0 0% 0%; /* Black */
-    --card-foreground: 0 0% 100%; /* White */
-    --popover: 0 0% 0%; /* Black */
-    --popover-foreground: 0 0% 100%; /* White */
-    --primary: 36 100% 50%; /* Orange */
+    --foreground: 0 0% 90%; /* Light Gray */
+    --card: 0 0% 5%; /* Very Dark Gray */
+    --card-foreground: 0 0% 90%; /* Light Gray */
+    --popover: 0 0% 5%; /* Very Dark Gray */
+    --popover-foreground: 0 0% 90%; /* Light Gray */
+    --primary: 30 100% 50%; /* Orange */
     --primary-foreground: 0 0% 0%; /* Black */
-    --secondary: 0 0% 20%; /* Dark Gray */
-    --secondary-foreground: 0 0% 100%; /* White */
+    --secondary: 0 0% 15%; /* Dark Gray */
+    --secondary-foreground: 0 0% 90%; /* Light Gray */
     --muted: 0 0% 10%; /* Darker Gray */
-    --muted-foreground: 0 0% 60%; /* Light Gray */
-    --accent: 0 0% 30%; /* Medium Gray */
-    --accent-foreground: 0 0% 100%; /* White */
+    --muted-foreground: 0 0% 60%; /* Medium Gray */
+    --accent: 0 0% 20%; /* Medium Dark Gray */
+    --accent-foreground: 0 0% 90%; /* Light Gray */
     --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive-foreground: 0 0% 90%; /* Light Gray */
     --border: 0 0% 15%; /* Darker Gray */
     --input: 0 0% 15%; /* Darker Gray */
-    --ring: 36 100% 50%; /* Orange */
+    --ring: 30 100% 50%; /* Orange */
     --radius: 0.5rem;
   }
 
   .dark {
     --background: 0 0% 0%; /* Black */
-    --foreground: 0 0% 100%; /* White */
-    --card: 0 0% 0%; /* Black */
-    --card-foreground: 0 0% 100%; /* White */
-    --popover: 0 0% 0%; /* Black */
-    --popover-foreground: 0 0% 100%; /* White */
-    --primary: 36 100% 50%; /* Orange */
+    --foreground: 0 0% 90%; /* Light Gray */
+    --card: 0 0% 5%; /* Very Dark Gray */
+    --card-foreground: 0 0% 90%; /* Light Gray */
+    --popover: 0 0% 5%; /* Very Dark Gray */
+    --popover-foreground: 0 0% 90%; /* Light Gray */
+    --primary: 30 100% 50%; /* Orange */
     --primary-foreground: 0 0% 0%; /* Black */
-    --secondary: 0 0% 20%; /* Dark Gray */
-    --secondary-foreground: 0 0% 100%; /* White */
+    --secondary: 0 0% 15%; /* Dark Gray */
+    --secondary-foreground: 0 0% 90%; /* Light Gray */
     --muted: 0 0% 10%; /* Darker Gray */
-    --muted-foreground: 0 0% 60%; /* Light Gray */
-    --accent: 0 0% 30%; /* Medium Gray */
-    --accent-foreground: 0 0% 100%; /* White */
+    --muted-foreground: 0 0% 60%; /* Medium Gray */
+    --accent: 0 0% 20%; /* Medium Dark Gray */
+    --accent-foreground: 0 0% 90%; /* Light Gray */
     --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive-foreground: 0 0% 90%; /* Light Gray */
     --border: 0 0% 15%; /* Darker Gray */
     --input: 0 0% 15%; /* Darker Gray */
-    --ring: 36 100% 50%; /* Orange */
+    --ring: 30 100% 50%; /* Orange */
   }
 }
 
@@ -80,8 +80,8 @@
 
   /* Grid pattern background */
   .bg-grid-pattern {
-    background-image: linear-gradient(to right, rgba(0, 0, 0, 0.05) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(0, 0, 0, 0.05) 1px, transparent 1px);
+    background-image: linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
     background-size: 20px 20px;
   }
 
@@ -89,4 +89,48 @@
     background-image: linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
       linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
   }
+}
+
+/* Custom styles for the black and orange theme */
+.btn-primary {
+  @apply bg-orange-500 text-black hover:bg-orange-600;
+}
+
+.text-primary {
+  @apply text-orange-500;
+}
+
+.border-primary {
+  @apply border-orange-500;
+}
+
+.bg-primary {
+  @apply bg-orange-500;
+}
+
+/* Custom card styles */
+.card-gradient {
+  @apply bg-gradient-to-br from-gray-900 to-black border-gray-800;
+}
+
+.card-header-gradient {
+  @apply bg-gradient-to-r from-orange-500 to-orange-600 text-black;
+}
+
+/* Custom form styles */
+.input-dark {
+  @apply bg-gray-900 border-gray-700 text-gray-200 focus:border-orange-500 focus:ring-orange-500;
+}
+
+.select-dark {
+  @apply bg-gray-900 border-gray-700 text-gray-200;
+}
+
+/* Custom button styles */
+.button-orange {
+  @apply bg-orange-500 text-black hover:bg-orange-600 focus:ring-orange-500;
+}
+
+.button-outline {
+  @apply border-gray-700 text-gray-300 hover:bg-gray-800 hover:text-orange-500;
 }
