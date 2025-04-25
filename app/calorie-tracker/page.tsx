@@ -2,40 +2,45 @@
 
 import { CalorieTracker } from "@/components/calorie-tracker"
 import { useAuth } from "@/lib/use-auth"
-import { Loader2 } from "lucide-react"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { AlertCircle } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import Link from "next/link"
 
 export default function CalorieTrackerPage() {
   const { user, loading } = useAuth()
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+      <div className="container mx-auto p-4 flex items-center justify-center min-h-[60vh]">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
       </div>
     )
   }
 
   if (!user) {
     return (
-      <div className="container mx-auto max-w-7xl p-4">
-        <div className="text-center py-12">
-          <h1 className="text-3xl font-bold mb-4">Please Sign In</h1>
-          <p className="mb-6">You need to be signed in to access the Calorie Tracker.</p>
-          <a href="/login" className="button-orange px-6 py-2 rounded-md">
-            Sign In
-          </a>
+      <div className="container mx-auto p-4">
+        <Alert variant="destructive" className="mb-4">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Authentication Required</AlertTitle>
+          <AlertDescription>You must be logged in to access the calorie tracker.</AlertDescription>
+        </Alert>
+        <div className="flex gap-4">
+          <Link href="/login">
+            <Button>Log In</Button>
+          </Link>
+          <Link href="/signup">
+            <Button variant="outline">Sign Up</Button>
+          </Link>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="container mx-auto max-w-7xl p-4">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold tracking-tight">Calorie Tracker</h1>
-        <p className="text-muted-foreground mt-1">Track your daily food intake and nutrition goals</p>
-      </div>
-
+    <div className="container mx-auto p-4">
+      <h1 className="text-3xl font-bold mb-6">Calorie Tracker</h1>
       <CalorieTracker />
     </div>
   )

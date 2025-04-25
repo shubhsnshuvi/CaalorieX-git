@@ -2,51 +2,27 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer base {
-  :root {
-    --background: 0 0% 0%; /* Black */
-    --foreground: 0 0% 90%; /* Light Gray */
-    --card: 0 0% 5%; /* Very Dark Gray */
-    --card-foreground: 0 0% 90%; /* Light Gray */
-    --popover: 0 0% 5%; /* Very Dark Gray */
-    --popover-foreground: 0 0% 90%; /* Light Gray */
-    --primary: 30 100% 50%; /* Orange */
-    --primary-foreground: 0 0% 0%; /* Black */
-    --secondary: 0 0% 15%; /* Dark Gray */
-    --secondary-foreground: 0 0% 90%; /* Light Gray */
-    --muted: 0 0% 10%; /* Darker Gray */
-    --muted-foreground: 0 0% 60%; /* Medium Gray */
-    --accent: 0 0% 20%; /* Medium Dark Gray */
-    --accent-foreground: 0 0% 90%; /* Light Gray */
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 90%; /* Light Gray */
-    --border: 0 0% 15%; /* Darker Gray */
-    --input: 0 0% 15%; /* Darker Gray */
-    --ring: 30 100% 50%; /* Orange */
-    --radius: 0.5rem;
-  }
-
-  .dark {
-    --background: 0 0% 0%; /* Black */
-    --foreground: 0 0% 90%; /* Light Gray */
-    --card: 0 0% 5%; /* Very Dark Gray */
-    --card-foreground: 0 0% 90%; /* Light Gray */
-    --popover: 0 0% 5%; /* Very Dark Gray */
-    --popover-foreground: 0 0% 90%; /* Light Gray */
-    --primary: 30 100% 50%; /* Orange */
-    --primary-foreground: 0 0% 0%; /* Black */
-    --secondary: 0 0% 15%; /* Dark Gray */
-    --secondary-foreground: 0 0% 90%; /* Light Gray */
-    --muted: 0 0% 10%; /* Darker Gray */
-    --muted-foreground: 0 0% 60%; /* Medium Gray */
-    --accent: 0 0% 20%; /* Medium Dark Gray */
-    --accent-foreground: 0 0% 90%; /* Light Gray */
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 90%; /* Light Gray */
-    --border: 0 0% 15%; /* Darker Gray */
-    --input: 0 0% 15%; /* Darker Gray */
-    --ring: 30 100% 50%; /* Orange */
-  }
+:root {
+  --background: 0 0% 3.9%;
+  --foreground: 0 0% 98%;
+  --card: 0 0% 3.9%;
+  --card-foreground: 0 0% 98%;
+  --popover: 0 0% 3.9%;
+  --popover-foreground: 0 0% 98%;
+  --primary: 20.5 90.2% 48.2%;
+  --primary-foreground: 60 9.1% 97.8%;
+  --secondary: 12 6.5% 15.1%;
+  --secondary-foreground: 60 9.1% 97.8%;
+  --muted: 12 6.5% 15.1%;
+  --muted-foreground: 24 5.4% 63.9%;
+  --accent: 12 6.5% 15.1%;
+  --accent-foreground: 60 9.1% 97.8%;
+  --destructive: 0 72.2% 50.6%;
+  --destructive-foreground: 60 9.1% 97.8%;
+  --border: 12 6.5% 15.1%;
+  --input: 12 6.5% 15.1%;
+  --ring: 20.5 90.2% 48.2%;
+  --radius: 0.5rem;
 }
 
 @layer base {
@@ -58,79 +34,36 @@
   }
 }
 
-/* Mobile-friendly styles for tabs */
 @layer components {
+  .card-gradient {
+    @apply bg-gradient-to-br from-gray-900 to-black border-0 shadow-md;
+  }
+
+  .card-header-gradient {
+    @apply bg-gradient-to-r from-orange-500 to-orange-600 text-black border-b;
+  }
+
+  .button-orange {
+    @apply bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-black shadow-md;
+  }
+
+  .button-outline {
+    @apply border border-gray-700 hover:bg-gray-800;
+  }
+
+  .input-dark {
+    @apply bg-gray-800 border-gray-700 focus:border-orange-500 focus:ring-orange-500;
+  }
+
+  .select-dark {
+    @apply bg-gray-800 border-gray-700;
+  }
+
   .tabs-list {
-    @apply flex flex-wrap;
+    @apply bg-gray-800/80 backdrop-blur-sm p-1;
   }
 
   .tab-trigger {
-    @apply flex-1 min-w-0 text-center;
+    @apply data-[state=active]:bg-gray-900 data-[state=active]:shadow-sm data-[state=active]:text-orange-500;
   }
-
-  /* Responsive form layouts */
-  .responsive-form-grid {
-    @apply grid grid-cols-1 gap-4 sm:grid-cols-2;
-  }
-
-  /* Responsive card layouts */
-  .responsive-card-grid {
-    @apply grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4;
-  }
-
-  /* Grid pattern background */
-  .bg-grid-pattern {
-    background-image: linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
-    background-size: 20px 20px;
-  }
-
-  .dark .bg-grid-pattern {
-    background-image: linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
-  }
-}
-
-/* Custom styles for the black and orange theme */
-.btn-primary {
-  @apply bg-orange-500 text-black hover:bg-orange-600;
-}
-
-.text-primary {
-  @apply text-orange-500;
-}
-
-.border-primary {
-  @apply border-orange-500;
-}
-
-.bg-primary {
-  @apply bg-orange-500;
-}
-
-/* Custom card styles */
-.card-gradient {
-  @apply bg-gradient-to-br from-gray-900 to-black border-gray-800;
-}
-
-.card-header-gradient {
-  @apply bg-gradient-to-r from-orange-500 to-orange-600 text-black;
-}
-
-/* Custom form styles */
-.input-dark {
-  @apply bg-gray-900 border-gray-700 text-gray-200 focus:border-orange-500 focus:ring-orange-500;
-}
-
-.select-dark {
-  @apply bg-gray-900 border-gray-700 text-gray-200;
-}
-
-/* Custom button styles */
-.button-orange {
-  @apply bg-orange-500 text-black hover:bg-orange-600 focus:ring-orange-500;
-}
-
-.button-outline {
-  @apply border-gray-700 text-gray-300 hover:bg-gray-800 hover:text-orange-500;
 }

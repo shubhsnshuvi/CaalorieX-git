@@ -1,182 +1,102 @@
-import { collection, collectionGroup, query, where, getDocs, limit, type QueryConstraint } from "firebase/firestore"
+import { collection, query, where, getDocs, limit, collectionGroup } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 
-/**
- * Search for items in a collection group with multiple query constraints
- * @param collectionGroupName The name of the collection group to search
- * @param constraints Array of query constraints
- * @param limitCount Maximum number of results to return
- * @returns Array of matching documents
- */
-export async function searchCollectionGroup(
-  collectionGroupName: string,
-  constraints: QueryConstraint[] = [],
-  limitCount = 50,
-) {
+// Function to search for foods across all sources (IFCT, USDA, custom)
+export async function searchAllFoodSources(searchTerm: string, maxResults = 20) {
+  const results: any[] = []
+  const term = searchTerm.toLowerCase()
+
   try {
-    const collectionRef = collectionGroup(db, collectionGroupName)
-    const queryConstraints = [...constraints]
+    // Search in IFCT foods
+    const ifctFoodsRef = collection(db, "ifct_foods")
+    const ifctQuery = query(ifctFoodsRef, where("keywords", "array-contains", term), limit(Math.floor(maxResults / 2)))
 
-    if (limitCount > 0) {
-      queryConstraints.push(limit(limitCount))
-    }
+    const ifctSnapshot = await getDocs(ifctQuery)
 
-    const q = query(collectionRef, ...queryConstraints)
-    const querySnapshot = await getDocs(q)
-
-    const results: any[] = []
-    querySnapshot.forEach((doc) => {
+    ifctSnapshot.forEach((doc) => {
+      const data = doc.data()
       results.push({
         id: doc.id,
-        ...doc.data(),
-        path: doc.ref.path,
+        name: data.name || "Unknown Food",
+        source: "ifct",
+        nutrients: data.nutrients || {
+          calories: 0,
+          protein: 0,
+          carbohydrates: 0,
+          fat: 0,
+        },
       })
     })
 
-    return results
-  } catch (error) {
-    console.error(`Error searching collection group ${collectionGroupName}:`, error)
-    throw error
-  }
-}
+    // Search in custom foods
+    const customFoodsRef = collectionGroup(db, "foodDatabase")
+    const customQuery = query(customFoodsRef, limit(Math.floor(maxResults / 4)))
+    const customSnapshot = await getDocs(customQuery)
 
-/**
- * Search for items in a specific collection with multiple query constraints
- * @param collectionPath The path to the collection
- * @param constraints Array of query constraints
- * @param limitCount Maximum number of results to return
- * @returns Array of matching documents
- */
-export async function searchCollection(collectionPath: string, constraints: QueryConstraint[] = [], limitCount = 50) {
-  try {
-    const collectionRef = collection(db, collectionPath)
-    const queryConstraints = [...constraints]
+    customSnapshot.forEach((doc) => {
+      const data = doc.data()
+      const foodName = data.name || data.foodName || ""
 
-    if (limitCount > 0) {
-      queryConstraints.push(limit(limitCount))
-    }
-
-    const q = query(collectionRef, ...queryConstraints)
-    const querySnapshot = await getDocs(q)
-
-    const results: any[] = []
-    querySnapshot.forEach((doc) => {
-      results.push({
-        id: doc.id,
-        ...doc.data(),
-      })
-    })
-
-    return results
-  } catch (error) {
-    console.error(`Error searching collection ${collectionPath}:`, error)
-    throw error
-  }
-}
-
-/**
- * Search for food items across all food-related collections
- * @param searchTerm The search term
- * @param limitCount Maximum number of results to return per collection
- * @returns Array of matching food items
- */
-export async function searchAllFoodSources(searchTerm: string, limitCount = 20) {
-  try {
-    const lowerSearchTerm = searchTerm.toLowerCase()
-
-    // Search results from each source
-    const results: any[] = []
-
-    // 1. Search IFCT foods
-    try {
-      const ifctFoods = await searchCollection(
-        "ifct_foods",
-        [where("keywords", "array-contains", lowerSearchTerm)],
-        limitCount,
-      )
-
-      results.push(
-        ...ifctFoods.map((food) => ({
-          ...food,
-          source: "ifct",
-        })),
-      )
-    } catch (error) {
-      console.error("Error searching IFCT foods:", error)
-    }
-
-    // 2. Search custom foods
-    try {
-      const customFoods = await searchCollectionGroup("foodDatabase", [], limitCount * 2)
-
-      // Filter by search term manually since we can't use array-contains on collection groups
-      const filteredCustomFoods = customFoods
-        .filter((food) => {
-          const name = (food.name || food.foodName || "").toLowerCase()
-          const category = (food.category || food.foodCategory || "").toLowerCase()
-          const description = (food.description || "").toLowerCase()
-
-          return (
-            name.includes(lowerSearchTerm) ||
-            category.includes(lowerSearchTerm) ||
-            description.includes(lowerSearchTerm)
-          )
-        })
-        .slice(0, limitCount)
-
-      results.push(
-        ...filteredCustomFoods.map((food) => ({
-          ...food,
+      // Only include if it matches the search term
+      if (foodName.toLowerCase().includes(term)) {
+        results.push({
+          id: doc.id,
+          name: foodName,
           source: "custom",
-        })),
-      )
-    } catch (error) {
-      console.error("Error searching custom foods:", error)
-    }
-
-    // 3. Search meal templates
-    try {
-      const mealTemplates = await searchCollectionGroup("meal_templates", [], limitCount * 2)
-
-      // Filter by search term manually
-      const filteredTemplates = mealTemplates
-        .filter((template) => {
-          const name = (template.name || template.templateName || "").toLowerCase()
-          const category = (template.category || template.mealType || "").toLowerCase()
-          const description = (template.description || "").toLowerCase()
-
-          return (
-            name.includes(lowerSearchTerm) ||
-            category.includes(lowerSearchTerm) ||
-            description.includes(lowerSearchTerm)
-          )
+          nutrients: {
+            calories: data.nutrients?.calories || data.nutritionalInfo?.calories || 0,
+            protein: data.nutrients?.protein || data.nutritionalInfo?.protein || 0,
+            carbohydrates: data.nutrients?.carbohydrates || data.nutritionalInfo?.carbs || 0,
+            fat: data.nutrients?.fat || data.nutritionalInfo?.fat || 0,
+          },
         })
-        .slice(0, limitCount)
+      }
+    })
 
-      results.push(
-        ...filteredTemplates.map((template) => ({
-          ...template,
-          source: "template",
-        })),
-      )
-    } catch (error) {
-      console.error("Error searching meal templates:", error)
+    // If we have fewer than maxResults, try to search USDA via our API
+    if (results.length < maxResults) {
+      try {
+        const response = await fetch(`/api/food-search?action=search&query=${encodeURIComponent(term)}`)
+        if (response.ok) {
+          const data = await response.json()
+          if (data.foods && data.foods.length > 0) {
+            const remainingSlots = maxResults - results.length
+
+            data.foods.slice(0, remainingSlots).forEach((food: any) => {
+              // Extract nutrients
+              const nutrients = food.foodNutrients || []
+              const calories = nutrients.find((n: any) => n.nutrientNumber === "208")?.value || 0
+              const protein = nutrients.find((n: any) => n.nutrientNumber === "203")?.value || 0
+              const carbs = nutrients.find((n: any) => n.nutrientNumber === "205")?.value || 0
+              const fat = nutrients.find((n: any) => n.nutrientNumber === "204")?.value || 0
+
+              results.push({
+                id: food.fdcId,
+                name: food.description || "Unknown Food",
+                source: "usda",
+                nutrients: {
+                  calories,
+                  protein,
+                  carbs,
+                  fat,
+                },
+              })
+            })
+          }
+        }
+      } catch (error) {
+        console.error("Error searching USDA foods:", error)
+      }
     }
 
     return results
   } catch (error) {
-    console.error("Error searching all food sources:", error)
+    console.error("Error searching foods:", error)
     return []
   }
 }
 
-/**
- * Get food items for a specific meal type from all sources
- * @param mealType The meal type (Breakfast, Lunch, Dinner, Snack)
- * @param dietPreference The diet preference
- * @param allergyList List of allergens to exclude
- * @returns Array of suitable food items
- */
+// Function to get foods for meal type from all sources
 export async function getFoodsForMealTypeFromAllSources(
   mealType: string,
   dietPreference: string,
@@ -185,142 +105,112 @@ export async function getFoodsForMealTypeFromAllSources(
   try {
     const results: any[] = []
 
-    // 1. Get foods from IFCT
-    try {
-      const ifctFoods = await searchCollection("ifct_foods", [limit(50)])
+    // Fetch custom foods from foodDatabase collection
+    const foodDbRef = collectionGroup(db, "foodDatabase")
+    const foodDbSnapshot = await getDocs(foodDbRef)
 
-      // Filter foods based on meal type, diet preference, and allergies
-      const filteredIFCTFoods = ifctFoods.filter((food) => {
-        const category = (food.category || "").toLowerCase()
-        const name = (food.name || "").toLowerCase()
+    foodDbSnapshot.forEach((doc) => {
+      const data = doc.data()
+      const foodName = data.name || data.foodName || ""
+      const category = (data.category || data.foodCategory || "").toLowerCase()
 
-        // Check if matches meal type
-        const matchesMealType =
-          category.includes(mealType.toLowerCase()) ||
-          (mealType === "Breakfast" && category.includes("breakfast")) ||
-          (mealType === "Lunch" && category.includes("lunch")) ||
-          (mealType === "Dinner" && category.includes("dinner")) ||
-          (mealType === "Snack" && category.includes("snack"))
+      // Check if the food matches the meal type and diet preference
+      const matchesMealType =
+        category.includes(mealType.toLowerCase()) ||
+        (mealType === "Breakfast" && category.includes("breakfast")) ||
+        (mealType === "Lunch" && category.includes("lunch")) ||
+        (mealType === "Dinner" && category.includes("dinner")) ||
+        (mealType === "Snack" && category.includes("snack"))
 
-        // Check if matches diet preference
-        const matchesDietPreference =
-          dietPreference === "non-veg" || // non-veg can eat anything
-          (dietPreference === "vegetarian" && food.isVegetarian) ||
-          (dietPreference === "vegan" && food.isVegan) ||
-          (dietPreference === "indian-vegetarian" && food.isVegetarian) ||
-          (dietPreference === "gluten-free" && !food.containsGluten) ||
-          (dietPreference === "jain-diet" && !food.containsOnionGarlic && !food.containsRootVegetables)
+      // Check if the food matches the diet preference
+      const matchesDietPreference =
+        dietPreference === "non-veg" || // non-veg can eat anything
+        (dietPreference === "vegetarian" && data.isVegetarian) ||
+        (dietPreference === "vegan" && data.isVegan) ||
+        (dietPreference === "indian-vegetarian" && data.isVegetarian) ||
+        (dietPreference === "gluten-free" && !data.containsGluten) ||
+        (dietPreference === "jain-diet" && !data.containsOnionGarlic && !data.containsRootVegetables)
 
-        // Check if contains allergens
-        const hasNoAllergies = !allergyList.some((allergy) => name.includes(allergy))
-
-        return matchesMealType && matchesDietPreference && hasNoAllergies
-      })
-
-      results.push(
-        ...filteredIFCTFoods.map((food) => ({
-          ...food,
-          source: "ifct",
-        })),
+      // Check if the food contains any allergens
+      const hasNoAllergies = !allergyList.some(
+        (allergy) =>
+          foodName.toLowerCase().includes(allergy) ||
+          (data.allergens && data.allergens.some((a: string) => a.toLowerCase().includes(allergy))),
       )
-    } catch (error) {
-      console.error("Error getting IFCT foods for meal type:", error)
-    }
 
-    // 2. Get custom foods
-    try {
-      const customFoods = await searchCollectionGroup("foodDatabase", [], 100)
-
-      // Filter foods based on meal type, diet preference, and allergies
-      const filteredCustomFoods = customFoods.filter((food) => {
-        const category = (food.category || food.foodCategory || "").toLowerCase()
-        const name = (food.name || food.foodName || "").toLowerCase()
-
-        // Check if matches meal type
-        const matchesMealType =
-          category.includes(mealType.toLowerCase()) ||
-          (mealType === "Breakfast" && category.includes("breakfast")) ||
-          (mealType === "Lunch" && category.includes("lunch")) ||
-          (mealType === "Dinner" && category.includes("dinner")) ||
-          (mealType === "Snack" && category.includes("snack"))
-
-        // Check if matches diet preference
-        const matchesDietPreference =
-          dietPreference === "non-veg" || // non-veg can eat anything
-          (dietPreference === "vegetarian" && food.isVegetarian) ||
-          (dietPreference === "vegan" && food.isVegan) ||
-          (dietPreference === "indian-vegetarian" && food.isVegetarian) ||
-          (dietPreference === "gluten-free" && !food.containsGluten) ||
-          (dietPreference === "jain-diet" && !food.containsOnionGarlic && !food.containsRootVegetables)
-
-        // Check if contains allergens
-        const hasNoAllergies = !allergyList.some(
-          (allergy) =>
-            name.includes(allergy) ||
-            (food.allergens && food.allergens.some((a: string) => a.toLowerCase().includes(allergy))),
-        )
-
-        return matchesMealType && matchesDietPreference && hasNoAllergies
-      })
-
-      results.push(
-        ...filteredCustomFoods.map((food) => ({
-          ...food,
+      if (matchesMealType && matchesDietPreference && hasNoAllergies) {
+        results.push({
+          id: doc.id,
+          name: foodName,
+          description: data.description || "",
+          nutrients: {
+            calories: data.nutrients?.calories || data.nutritionalInfo?.calories || 0,
+            protein: data.nutrients?.protein || data.nutritionalInfo?.protein || 0,
+            carbohydrates: data.nutrients?.carbohydrates || data.nutritionalInfo?.carbs || 0,
+            fat: data.nutrients?.fat || data.nutritionalInfo?.fat || 0,
+          },
           source: "custom",
-        })),
+          isVegetarian: data.isVegetarian || false,
+          isVegan: data.isVegan || false,
+          containsGluten: data.containsGluten || false,
+        })
+      }
+    })
+
+    // Fetch meal templates that match the meal type
+    const templatesRef = collectionGroup(db, "meal_templates")
+    const templatesSnapshot = await getDocs(templatesRef)
+
+    templatesSnapshot.forEach((doc) => {
+      const data = doc.data()
+      const templateName = data.name || data.templateName || ""
+      const mealTypeCategory = (data.mealType || "").toLowerCase()
+
+      // Check if the template matches the meal type
+      const matchesMealType =
+        mealTypeCategory.includes(mealType.toLowerCase()) ||
+        (mealType === "Breakfast" && mealTypeCategory.includes("breakfast")) ||
+        (mealType === "Lunch" && mealTypeCategory.includes("lunch")) ||
+        (mealType === "Dinner" && mealTypeCategory.includes("dinner")) ||
+        (mealType === "Snack" && mealTypeCategory.includes("snack"))
+
+      // Check if the template matches the diet preference
+      const matchesDietPreference =
+        dietPreference === "non-veg" || // non-veg can eat anything
+        (dietPreference === "vegetarian" && data.isVegetarian) ||
+        (dietPreference === "vegan" && data.isVegan) ||
+        (dietPreference === "indian-vegetarian" && data.isVegetarian) ||
+        (dietPreference === "gluten-free" && !data.containsGluten)
+
+      // Check if the template contains any allergens
+      const hasNoAllergies = !allergyList.some(
+        (allergy) =>
+          templateName.toLowerCase().includes(allergy) ||
+          (data.allergens && data.allergens.some((a: string) => a.toLowerCase().includes(allergy))),
       )
-    } catch (error) {
-      console.error("Error getting custom foods for meal type:", error)
-    }
 
-    // 3. Get meal templates
-    try {
-      const mealTemplates = await searchCollectionGroup("meal_templates", [], 100)
-
-      // Filter templates based on meal type, diet preference, and allergies
-      const filteredTemplates = mealTemplates.filter((template) => {
-        const mealTypeCategory = (template.mealType || template.category || "").toLowerCase()
-        const name = (template.name || template.templateName || "").toLowerCase()
-
-        // Check if matches meal type
-        const matchesMealType =
-          mealTypeCategory.includes(mealType.toLowerCase()) ||
-          (mealType === "Breakfast" && mealTypeCategory.includes("breakfast")) ||
-          (mealType === "Lunch" && mealTypeCategory.includes("lunch")) ||
-          (mealType === "Dinner" && mealTypeCategory.includes("dinner")) ||
-          (mealType === "Snack" && mealTypeCategory.includes("snack"))
-
-        // Check if matches diet preference
-        const matchesDietPreference =
-          dietPreference === "non-veg" || // non-veg can eat anything
-          (dietPreference === "vegetarian" && template.isVegetarian) ||
-          (dietPreference === "vegan" && template.isVegan) ||
-          (dietPreference === "indian-vegetarian" && template.isVegetarian) ||
-          (dietPreference === "gluten-free" && !template.containsGluten)
-
-        // Check if contains allergens
-        const hasNoAllergies = !allergyList.some(
-          (allergy) =>
-            name.includes(allergy) ||
-            (template.allergens && template.allergens.some((a: string) => a.toLowerCase().includes(allergy))),
-        )
-
-        return matchesMealType && matchesDietPreference && hasNoAllergies
-      })
-
-      results.push(
-        ...filteredTemplates.map((template) => ({
-          ...template,
+      if (matchesMealType && matchesDietPreference && hasNoAllergies) {
+        results.push({
+          id: doc.id,
+          name: templateName,
+          description: data.description || "",
+          nutrients: {
+            calories: data.totalNutrition?.calories || 0,
+            protein: data.totalNutrition?.protein || 0,
+            carbs: data.totalNutrition?.carbs || 0,
+            fat: data.totalNutrition?.fat || 0,
+          },
           source: "template",
-        })),
-      )
-    } catch (error) {
-      console.error("Error getting meal templates for meal type:", error)
-    }
+          isVegetarian: data.isVegetarian || false,
+          isVegan: data.isVegan || false,
+          containsGluten: data.containsGluten || false,
+        })
+      }
+    })
 
     return results
   } catch (error) {
-    console.error("Error getting foods for meal type from all sources:", error)
+    console.error("Error fetching custom foods and templates:", error)
     return []
   }
 }

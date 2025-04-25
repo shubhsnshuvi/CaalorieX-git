@@ -1,19 +1,23 @@
 "use client"
 
+import { CardDescription } from "@/components/ui/card"
+
 import { useState, useEffect } from "react"
-import { useSearchParams } from "next/navigation"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import { useAuth } from "@/lib/use-auth"
-import { MealPlanGenerator } from "@/components/meal-plan-generator"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { MealPlanHistory } from "@/components/meal-plan-history"
 import { UserProfile } from "@/components/user-profile"
-import { Chatbot } from "@/components/chatbot"
+import { CalorieTracker } from "@/components/calorie-tracker"
 import { DietitianCard } from "@/components/dietitian-card"
-import { BMICalculator } from "@/components/bmi-calculator"
-import { Utensils, BarChart3 } from "lucide-react"
 import Link from "next/link"
+import { History, User2, Sparkles, Utensils } from "lucide-react"
+import { useSearchParams } from "next/navigation"
+import { BMICalculator } from "@/components/bmi-calculator"
+import { MealPlanGenerator } from "@/components/meal-plan-generator"
+import { Chatbot } from "@/components/chatbot"
+import { BarChart3 } from "lucide-react"
 
 export default function DashboardPage() {
   const { user } = useAuth()
@@ -38,24 +42,41 @@ export default function DashboardPage() {
         </div>
       </div>
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="tabs-list">
-          <TabsTrigger value="overview" className="tab-trigger">
-            Overview
+        <TabsList className="grid w-full grid-cols-5 h-auto mb-6 p-1 bg-gray-800/80 backdrop-blur-sm sticky top-[65px] z-10 shadow-sm">
+          <TabsTrigger
+            value="enhanced-meal-plan"
+            className="flex flex-col py-3 px-1 h-auto text-xs sm:text-sm sm:flex-row sm:items-center sm:gap-2 data-[state=active]:bg-gray-900 dark:data-[state=active]:bg-gray-800 data-[state=active]:shadow-sm data-[state=active]:text-orange-500 rounded-md transition-all"
+          >
+            <Sparkles className="h-4 w-4 mx-auto sm:mx-0" />
+            <span className="mt-1 sm:mt-0">Meal Plan</span>
           </TabsTrigger>
-          <TabsTrigger value="meal-plans" className="tab-trigger">
-            Meal Plans
+          <TabsTrigger
+            value="history"
+            className="flex flex-col py-3 px-1 h-auto text-xs sm:text-sm sm:flex-row sm:items-center sm:gap-2 data-[state=active]:bg-gray-900 dark:data-[state=active]:bg-gray-800 data-[state=active]:shadow-sm data-[state=active]:text-orange-500 rounded-md transition-all"
+          >
+            <History className="h-4 w-4 mx-auto sm:mx-0" />
+            <span className="mt-1 sm:mt-0">History</span>
           </TabsTrigger>
-          <TabsTrigger value="profile" className="tab-trigger">
-            Profile
+          <TabsTrigger
+            value="daily-meal-tracker"
+            className="flex flex-col py-3 px-1 h-auto text-xs sm:text-sm sm:flex-row sm:items-center sm:gap-2 data-[state=active]:bg-gray-900 dark:data-[state=active]:bg-gray-800 data-[state=active]:shadow-sm data-[state=active]:text-orange-500 rounded-md transition-all"
+          >
+            <Utensils className="h-4 w-4 mx-auto sm:mx-0" />
+            <span className="mt-1 sm:mt-0">Daily Meal Diary</span>
           </TabsTrigger>
-          <TabsTrigger value="chatbot" className="tab-trigger">
-            AI Assistant
+          <TabsTrigger
+            value="calorie-tracker"
+            className="flex flex-col py-3 px-1 h-auto text-xs sm:text-sm sm:flex-row sm:items-center sm:gap-2 data-[state=active]:bg-gray-900 dark:data-[state=active]:bg-gray-800 data-[state=active]:shadow-sm data-[state=active]:text-orange-500 rounded-md transition-all"
+          >
+            <Utensils className="h-4 w-4 mx-auto sm:mx-0" />
+            <span className="mt-1 sm:mt-0">Calorie Tracker</span>
           </TabsTrigger>
-          <TabsTrigger value="settings" className="tab-trigger">
-            Settings
-          </TabsTrigger>
-          <TabsTrigger value="support" className="tab-trigger">
-            Support
+          <TabsTrigger
+            value="profile"
+            className="flex flex-col py-3 px-1 h-auto text-xs sm:text-sm sm:flex-row sm:items-center sm:gap-2 data-[state=active]:bg-gray-900 dark:data-[state=active]:bg-gray-800 data-[state=active]:shadow-sm data-[state=active]:text-orange-500 rounded-md transition-all"
+          >
+            <User2 className="h-4 w-4 mx-auto sm:mx-0" />
+            <span className="mt-1 sm:mt-0">Profile</span>
           </TabsTrigger>
         </TabsList>
         <TabsContent value="overview" className="space-y-4">
@@ -159,6 +180,9 @@ export default function DashboardPage() {
               <p>Support content will be added soon.</p>
             </CardContent>
           </Card>
+        </TabsContent>
+        <TabsContent value="calorie-tracker" className="space-y-4 mt-2">
+          <CalorieTracker />
         </TabsContent>
       </Tabs>
     </div>
