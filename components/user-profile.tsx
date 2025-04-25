@@ -1,508 +1,326 @@
 "use client"
 
+import type React from "react"
+
 import { useState, useEffect } from "react"
-import { z } from "zod"
-import { zodResolver } from "@hookform/resolvers/zod"
-import { useForm } from "react-hook-form"
-import { Button } from "@/components/ui/button"
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Textarea } from "@/components/ui/textarea"
-import { doc, updateDoc, getDoc } from "firebase/firestore"
-import { db } from "@/lib/firebase"
 import { useAuth } from "@/lib/use-auth"
+import { doc, updateDoc } from "firebase/firestore"
+import { db } from "@/lib/firebase"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/components/ui/use-toast"
-import { BMICalculator } from "./bmi-calculator"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { AlertCircle } from "lucide-react"
+import { Loader2 } from "lucide-react"
 
-const medicalConditions = [
-  { id: "none", label: "None" },
-  { id: "diabetes", label: "Diabetes" },
-  { id: "thyroid", label: "Thyroid" },
-  { id: "pcod", label: "PCOD/PCOS" },
-  { id: "high-cholesterol", label: "High Cholesterol" },
-  { id: "hypertension", label: "Hypertension" },
-  { id: "heart-disease", label: "Heart Disease" },
-]
-
-const activityLevels = [
-  { value: "sedentary", label: "Sedentary (little or no exercise)" },
-  { value: "light", label: "Lightly active (light exercise/sports 1-3 days/week)" },
-  { value: "moderate", label: "Moderately active (moderate exercise/sports 3-5 days/week)" },
-  { value: "active", label: "Very active (hard exercise/sports 6-7 days a week)" },
-  { value: "extra-active", label: "Extra active (very hard exercise, physical job or training twice a day)" },
-]
-
-// Updated Zod Schema with new fields
-const formSchema = z.object({
-  fullName: z.string().min(2, {
-    message: "Full name must be at least 2 characters.",
-  }),
-  gender: z.enum(["male", "female"], {
-    required_error: "Please select your gender.",
-  }),
-  age: z.coerce.number().positive("Please enter a valid age."),
-  weight: z.coerce.number().positive("Please enter a valid weight in kg."),
-  height: z.coerce.number().positive("Please enter a valid height in cm."),
-  dietPreference: z.enum(
-    [
-      "vegetarian",
-      "vegan",
-      "non-veg",
-      "eggetarian",
-      "gluten-free",
-      "intermittent-fasting",
-      "blood-type",
-      "indian-vegetarian",
-      "hindu-fasting",
-      "jain-diet",
-      "sattvic-diet",
-      "indian-regional",
-    ],
-    {
-      required_error: "Please select a diet preference.",
-    },
-  ),
-  dietGoal: z.enum(["weight-loss", "weight-gain", "muscle-building", "lean-mass", "keto", "maintenance"], {
-    required_error: "Please select a diet goal.",
-  }),
-  medicalConditions: z.array(z.string()).default([]),
-  allergies: z.string().optional(),
-  activityLevel: z.enum(["sedentary", "light", "moderate", "active", "extra-active"], {
-    required_error: "Please select your activity level.",
-  }),
-})
-
-export function UserProfile({
-  userData: initialUserData,
-  onProfileUpdate,
-}: {
-  userData: any
-  onProfileUpdate?: () => void
-}) {
-  const { user } = useAuth()
+export function UserProfile() {
+  const { user, userData, loading, error, refreshUserData } = useAuth()
   const { toast } = useToast()
-  const [isUpdating, setIsUpdating] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [userData, setUserData] = useState<any>(initialUserData)
-  const [bmiKey, setBmiKey] = useState<number>(0) // Key to force BMI component to re-render
-
-  // Initialize form with user data
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      fullName: userData?.fullName || "",
-      gender: userData?.gender || "male",
-      age: userData?.age || 0,
-      weight: userData?.weight || 0,
-      height: userData?.height || 0,
-      dietPreference: userData?.dietPreference || "non-veg",
-      dietGoal: userData?.dietGoal || "weight-loss",
-      medicalConditions: userData?.medicalConditions || [],
-      allergies: userData?.allergies || "",
-      activityLevel: userData?.activityLevel || "moderate",
-    },
+  const [formData, setFormData] = useState({
+    fullName: "",
+    email: "",
+    age: "",
+    gender: "male",
+    weight: "",
+    height: "",
+    dietPreference: "non-veg",
+    dietGoal: "weight-loss",
+    medicalConditions: "",
+    allergies: "",
+    activityLevel: "moderate",
   })
+  const [isSaving, setIsSaving] = useState(false)
+  const [localLoading, setLocalLoading] = useState(true)
 
-  // Update form when userData changes
+  // Load user data when component mounts
   useEffect(() => {
     if (userData) {
-      form.reset({
+      setFormData({
         fullName: userData.fullName || "",
+        email: userData.email || "",
+        age: userData.age?.toString() || "",
         gender: userData.gender || "male",
-        age: userData.age || 0,
-        weight: userData.weight || 0,
-        height: userData.height || 0,
+        weight: userData.weight?.toString() || "",
+        height: userData.height?.toString() || "",
         dietPreference: userData.dietPreference || "non-veg",
         dietGoal: userData.dietGoal || "weight-loss",
-        medicalConditions: userData.medicalConditions || [],
+        medicalConditions: Array.isArray(userData.medicalConditions)
+          ? userData.medicalConditions.join(", ")
+          : userData.medicalConditions || "",
         allergies: userData.allergies || "",
         activityLevel: userData.activityLevel || "moderate",
       })
+      setLocalLoading(false)
+    } else if (!loading) {
+      setLocalLoading(false)
     }
-  }, [userData, form])
+  }, [userData, loading])
 
-  // Check if userData is valid
-  if (!userData) {
-    return (
-      <Alert variant="destructive">
-        <AlertCircle className="h-4 w-4" />
-        <AlertTitle>Error</AlertTitle>
-        <AlertDescription>
-          Unable to load your profile data. Please try refreshing the page or contact support.
-        </AlertDescription>
-      </Alert>
-    )
+  // Handle form input changes
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target
+    setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
-  async function onSubmit(values: z.infer<typeof formSchema>) {
+  // Handle select changes
+  const handleSelectChange = (name: string, value: string) => {
+    setFormData((prev) => ({ ...prev, [name]: value }))
+  }
+
+  // Save profile data
+  const handleSave = async () => {
     if (!user) {
       toast({
-        title: "Not authenticated",
-        description: "You must be logged in to update your profile.",
+        title: "Error",
+        description: "You must be logged in to update your profile",
         variant: "destructive",
       })
-      setIsUpdating(false)
       return
     }
 
-    setIsUpdating(true)
-    setError(null)
+    setIsSaving(true)
 
     try {
-      const userRef = doc(db, "users", user.uid)
-      await updateDoc(userRef, values)
-
-      // Fetch the updated user data from Firestore
-      const updatedUserDoc = await getDoc(userRef)
-      if (updatedUserDoc.exists()) {
-        const updatedUserData = updatedUserDoc.data()
-
-        // Update the local state with the new data
-        setUserData(updatedUserData)
-
-        // Force BMI component to re-render
-        setBmiKey((prevKey) => prevKey + 1)
-
-        // Call the onProfileUpdate callback if provided
-        if (onProfileUpdate) {
-          onProfileUpdate()
-        }
+      // Convert string values to numbers where needed
+      const dataToSave = {
+        ...formData,
+        age: Number.parseInt(formData.age) || 0,
+        weight: Number.parseFloat(formData.weight) || 0,
+        height: Number.parseFloat(formData.height) || 0,
+        medicalConditions: formData.medicalConditions.split(",").map((item) => item.trim()),
       }
+
+      // Update the user document
+      const userRef = doc(db, "users", user.uid)
+      await updateDoc(userRef, dataToSave)
+
+      // Refresh user data in context
+      await refreshUserData()
 
       toast({
         title: "Profile updated",
-        description: "Your profile has been updated successfully.",
+        description: "Your profile has been updated successfully",
       })
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error updating profile:", error)
-      setError(error.message || "Failed to update profile. Please try again.")
       toast({
         title: "Error",
         description: "Failed to update profile. Please try again.",
         variant: "destructive",
       })
     } finally {
-      setIsUpdating(false)
+      setIsSaving(false)
     }
   }
 
-  // Calculate BMI to provide a recommended diet goal
-  const bmi = userData?.weight && userData?.height ? userData.weight / Math.pow(userData.height / 100, 2) : null
-
-  // Get recommended diet goal based on BMI and gender
-  const getRecommendedDietGoal = (bmi: number, gender: string) => {
-    if (bmi < 18.5) return "weight-gain"
-    if (bmi >= 25) return "weight-loss"
-    return gender === "male" ? "muscle-building" : "lean-mass"
-  }
-
-  const recommendedGoal = bmi && userData?.gender ? getRecommendedDietGoal(bmi, userData.gender) : null
-
-  return (
-    <div className="space-y-6">
-      {error && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Error</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      <Card>
+  // Show loading state
+  if (localLoading) {
+    return (
+      <Card className="card-gradient">
         <CardHeader>
-          <CardTitle>Profile</CardTitle>
-          <CardDescription>Update your personal information</CardDescription>
+          <CardTitle>User Profile</CardTitle>
+          <CardDescription>Loading your profile information...</CardDescription>
         </CardHeader>
-        <CardContent>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <FormField
-                  control={form.control}
-                  name="fullName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Full Name</FormLabel>
-                      <FormControl>
-                        <Input placeholder="John Doe" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="gender"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Gender</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select gender" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="male">Male</SelectItem>
-                          <SelectItem value="female">Female</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                <FormField
-                  control={form.control}
-                  name="age"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Age</FormLabel>
-                      <FormControl>
-                        <Input type="number" placeholder="30" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="weight"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Weight (kg)</FormLabel>
-                      <FormControl>
-                        <Input type="number" placeholder="70" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="height"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Height (cm)</FormLabel>
-                      <FormControl>
-                        <Input type="number" placeholder="175" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <FormField
-                  control={form.control}
-                  name="dietPreference"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Diet Preference</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select diet preference" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="vegetarian">Vegetarian</SelectItem>
-                          <SelectItem value="indian-vegetarian">Indian Vegetarian</SelectItem>
-                          <SelectItem value="vegan">Vegan</SelectItem>
-                          <SelectItem value="non-veg">Non-Vegetarian</SelectItem>
-                          <SelectItem value="eggetarian">Eggetarian</SelectItem>
-                          <SelectItem value="gluten-free">Gluten-Free</SelectItem>
-                          <SelectItem value="intermittent-fasting">Intermittent Fasting</SelectItem>
-                          <SelectItem value="blood-type">Blood Type Diet</SelectItem>
-                          <SelectItem value="hindu-fasting">Hindu Fasting</SelectItem>
-                          <SelectItem value="jain-diet">Jain Diet</SelectItem>
-                          <SelectItem value="sattvic-diet">Sattvic Diet</SelectItem>
-                          <SelectItem value="indian-regional">Indian Regional Diet</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="dietGoal"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Diet Goal</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select diet goal" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="weight-loss">Weight Loss</SelectItem>
-                          <SelectItem value="weight-gain">Weight Gain</SelectItem>
-                          <SelectItem value="muscle-building">Muscle Building</SelectItem>
-                          <SelectItem value="lean-mass">Lean Mass Gain</SelectItem>
-                          <SelectItem value="keto">Keto Diet</SelectItem>
-                          <SelectItem value="maintenance">Maintenance</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      {recommendedGoal && field.value !== recommendedGoal && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Based on your BMI, we recommend a{" "}
-                          <span
-                            className="text-primary cursor-pointer underline"
-                            onClick={() => form.setValue("dietGoal", recommendedGoal)}
-                          >
-                            {recommendedGoal.replace("-", " ")}
-                          </span>{" "}
-                          goal.
-                        </p>
-                      )}
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              {/* Activity Level Field */}
-              <FormField
-                control={form.control}
-                name="activityLevel"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Physical Activity Level</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select activity level" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {activityLevels.map((level) => (
-                          <SelectItem key={level.value} value={level.value}>
-                            {level.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormDescription className="text-xs">
-                      This helps us calculate your daily calorie needs more accurately.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {/* Allergies Field */}
-              <FormField
-                control={form.control}
-                name="allergies"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Allergies/Intolerances</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder="List any food allergies or intolerances (e.g., nuts, dairy, shellfish)"
-                        className="resize-none"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormDescription className="text-xs">
-                      We'll ensure these foods are excluded from your meal plans.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {/* Medical Conditions Field */}
-              <FormField
-                control={form.control}
-                name="medicalConditions"
-                render={() => (
-                  <FormItem>
-                    <div className="mb-2">
-                      <FormLabel className="text-base">Medical Conditions</FormLabel>
-                      <FormDescription>
-                        Select any medical conditions you have for personalized meal plans.
-                      </FormDescription>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-                      {medicalConditions.map((item) => (
-                        <FormField
-                          key={item.id}
-                          control={form.control}
-                          name="medicalConditions"
-                          render={({ field }) => {
-                            return (
-                              <FormItem key={item.id} className="flex flex-row items-start space-x-2 space-y-0">
-                                <FormControl>
-                                  <Checkbox
-                                    checked={field.value?.includes(item.id)}
-                                    onCheckedChange={(checked) => {
-                                      // If "None" is selected, clear all other selections
-                                      if (item.id === "none" && checked) {
-                                        return field.onChange(["none"])
-                                      }
-
-                                      // If any other condition is selected, remove "None"
-                                      let newValue = field.value?.filter((value) => value !== "none") || []
-
-                                      if (checked) {
-                                        newValue.push(item.id)
-                                      } else {
-                                        newValue = newValue.filter((value) => value !== item.id)
-                                      }
-
-                                      // If no conditions are selected, default to "None"
-                                      if (newValue.length === 0) {
-                                        newValue = ["none"]
-                                      }
-
-                                      return field.onChange(newValue)
-                                    }}
-                                  />
-                                </FormControl>
-                                <FormLabel className="text-sm font-normal">{item.label}</FormLabel>
-                              </FormItem>
-                            )
-                          }}
-                        />
-                      ))}
-                    </div>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <Button type="submit" className="w-full bg-green-600 hover:bg-green-700" disabled={isUpdating}>
-                {isUpdating ? "Updating..." : "Update Profile"}
-              </Button>
-            </form>
-          </Form>
+        <CardContent className="flex justify-center py-10">
+          <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
         </CardContent>
       </Card>
+    )
+  }
 
-      {/* BMI Calculator */}
-      {userData?.weight && userData?.height && (
-        <BMICalculator
-          key={bmiKey} // This forces re-render when data changes
-          weight={userData.weight}
-          height={userData.height}
-          gender={userData.gender || "male"}
-        />
-      )}
-    </div>
+  // Show error state
+  if (error) {
+    return (
+      <Card className="card-gradient">
+        <CardHeader>
+          <CardTitle>User Profile</CardTitle>
+          <CardDescription className="text-red-500">Error loading profile</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="text-red-500">{error}</p>
+          <Button onClick={refreshUserData} className="mt-4 button-orange">
+            Try Again
+          </Button>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <Card className="card-gradient">
+      <CardHeader>
+        <CardTitle>User Profile</CardTitle>
+        <CardDescription>Update your personal information and preferences</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-2">
+            <Label htmlFor="fullName">Full Name</Label>
+            <Input
+              id="fullName"
+              name="fullName"
+              value={formData.fullName}
+              onChange={handleChange}
+              className="input-dark"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              name="email"
+              value={formData.email}
+              onChange={handleChange}
+              disabled
+              className="input-dark opacity-70"
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="space-y-2">
+            <Label htmlFor="age">Age</Label>
+            <Input
+              id="age"
+              name="age"
+              type="number"
+              value={formData.age}
+              onChange={handleChange}
+              className="input-dark"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="gender">Gender</Label>
+            <Select value={formData.gender} onValueChange={(value) => handleSelectChange("gender", value)}>
+              <SelectTrigger className="select-dark">
+                <SelectValue placeholder="Select gender" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="male">Male</SelectItem>
+                <SelectItem value="female">Female</SelectItem>
+                <SelectItem value="other">Other</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="activityLevel">Activity Level</Label>
+            <Select
+              value={formData.activityLevel}
+              onValueChange={(value) => handleSelectChange("activityLevel", value)}
+            >
+              <SelectTrigger className="select-dark">
+                <SelectValue placeholder="Select activity level" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="sedentary">Sedentary (little or no exercise)</SelectItem>
+                <SelectItem value="light">Light (exercise 1-3 days/week)</SelectItem>
+                <SelectItem value="moderate">Moderate (exercise 3-5 days/week)</SelectItem>
+                <SelectItem value="active">Active (exercise 6-7 days/week)</SelectItem>
+                <SelectItem value="very-active">Very Active (hard exercise daily)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-2">
+            <Label htmlFor="weight">Weight (kg)</Label>
+            <Input
+              id="weight"
+              name="weight"
+              type="number"
+              value={formData.weight}
+              onChange={handleChange}
+              className="input-dark"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="height">Height (cm)</Label>
+            <Input
+              id="height"
+              name="height"
+              type="number"
+              value={formData.height}
+              onChange={handleChange}
+              className="input-dark"
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-2">
+            <Label htmlFor="dietPreference">Diet Preference</Label>
+            <Select
+              value={formData.dietPreference}
+              onValueChange={(value) => handleSelectChange("dietPreference", value)}
+            >
+              <SelectTrigger className="select-dark">
+                <SelectValue placeholder="Select diet preference" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="non-veg">Non-Vegetarian</SelectItem>
+                <SelectItem value="vegetarian">Vegetarian</SelectItem>
+                <SelectItem value="vegan">Vegan</SelectItem>
+                <SelectItem value="indian-vegetarian">Indian Vegetarian</SelectItem>
+                <SelectItem value="gluten-free">Gluten Free</SelectItem>
+                <SelectItem value="jain-diet">Jain Diet</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="dietGoal">Diet Goal</Label>
+            <Select value={formData.dietGoal} onValueChange={(value) => handleSelectChange("dietGoal", value)}>
+              <SelectTrigger className="select-dark">
+                <SelectValue placeholder="Select diet goal" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="weight-loss">Weight Loss</SelectItem>
+                <SelectItem value="weight-gain">Weight Gain</SelectItem>
+                <SelectItem value="muscle-gain">Muscle Gain</SelectItem>
+                <SelectItem value="maintenance">Maintenance</SelectItem>
+                <SelectItem value="keto">Keto</SelectItem>
+                <SelectItem value="low-carb">Low Carb</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="medicalConditions">Medical Conditions (comma separated)</Label>
+          <Textarea
+            id="medicalConditions"
+            name="medicalConditions"
+            value={formData.medicalConditions}
+            onChange={handleChange}
+            className="input-dark min-h-[80px]"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="allergies">Allergies (comma separated)</Label>
+          <Textarea
+            id="allergies"
+            name="allergies"
+            value={formData.allergies}
+            onChange={handleChange}
+            className="input-dark min-h-[80px]"
+          />
+        </div>
+      </CardContent>
+      <CardFooter>
+        <Button onClick={handleSave} disabled={isSaving} className="button-orange">
+          {isSaving ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Saving...
+            </>
+          ) : (
+            "Save Changes"
+          )}
+        </Button>
+      </CardFooter>
+    </Card>
   )
 }

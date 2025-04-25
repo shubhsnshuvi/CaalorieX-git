@@ -5,7 +5,7 @@ import { useAuth } from "@/lib/use-auth"
 import { searchAllFoodSources } from "@/lib/firestore-utils"
 import { calculateIFCTNutritionForPortion } from "@/lib/ifct-api"
 import { calculateNutritionForPortion } from "@/lib/usda-api"
-import { PlusCircle, Trash2, Search, ChevronDown, ChevronUp, X } from "lucide-react"
+import { PlusCircle, Trash2, Search, ChevronDown, ChevronUp, X, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -47,7 +47,7 @@ interface DailyGoals {
 }
 
 export function CalorieTracker() {
-  const { user } = useAuth()
+  const { user, userData, loading, error, refreshUserData } = useAuth()
   const [searchTerm, setSearchTerm] = useState("")
   const [searchResults, setSearchResults] = useState<any[]>([])
   const [isSearching, setIsSearching] = useState(false)
@@ -111,6 +111,8 @@ export function CalorieTracker() {
 
   // Load user's daily goals and meals from Firestore
   useEffect(() => {
+    let unsubscribe: (() => void) | undefined
+
     const loadUserData = async () => {
       if (!user?.uid) return
 
@@ -156,7 +158,45 @@ export function CalorieTracker() {
     if (user?.uid) {
       loadUserData()
     }
+
+    return () => {
+      if (unsubscribe) {
+        unsubscribe()
+      }
+    }
   }, [user?.uid])
+
+  // If there's an error loading user data, show an error message with a retry button
+  if (error) {
+    return (
+      <Card className="card-gradient">
+        <CardHeader>
+          <CardTitle className="text-red-500">Error</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p>{error}</p>
+          <Button onClick={refreshUserData} className="button-orange w-full">
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Retry
+          </Button>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // If still loading, show a loading indicator
+  if (loading) {
+    return (
+      <Card className="card-gradient">
+        <CardHeader>
+          <CardTitle>Loading</CardTitle>
+        </CardHeader>
+        <CardContent className="flex justify-center py-8">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500"></div>
+        </CardContent>
+      </Card>
+    )
+  }
 
   // Save meals to Firestore whenever they change
   useEffect(() => {
