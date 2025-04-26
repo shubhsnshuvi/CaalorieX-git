@@ -6,14 +6,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/lib/use-auth"
-import { MealPlanGenerator } from "@/components/meal-plan-generator"
 import { MealPlanHistory } from "@/components/meal-plan-history"
 import { UserProfile } from "@/components/user-profile"
-import { Chatbot } from "@/components/chatbot"
-import { DietitianCard } from "@/components/dietitian-card"
-import { BMICalculator } from "@/components/bmi-calculator"
 import { CalorieTracker } from "@/components/calorie-tracker"
-import { Utensils, BarChart3, RefreshCw } from "lucide-react"
+import { DietitianCard } from "@/components/dietitian-card"
+import { EnhancedMealPlanGenerator } from "@/components/enhanced-meal-plan-generator"
+import { Chatbot } from "@/components/chatbot"
+import { BMICalculator } from "@/components/bmi-calculator"
+import { History, User2, Sparkles, Utensils, RefreshCw } from "lucide-react"
 import Link from "next/link"
 
 export default function DashboardPage() {
@@ -77,23 +77,44 @@ export default function DashboardPage() {
         </div>
       </div>
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="tabs-list">
-          <TabsTrigger value="overview" className="tab-trigger">
-            Overview
+        <TabsList className="grid w-full grid-cols-5 h-auto mb-6 p-1 bg-gray-800/80 backdrop-blur-sm sticky top-[65px] z-10 shadow-sm">
+          <TabsTrigger
+            value="enhanced-meal-plan"
+            className="flex flex-col py-3 px-1 h-auto text-xs sm:text-sm sm:flex-row sm:items-center sm:gap-2 data-[state=active]:bg-gray-900 dark:data-[state=active]:bg-gray-800 data-[state=active]:shadow-sm data-[state=active]:text-orange-500 rounded-md transition-all"
+          >
+            <Sparkles className="h-4 w-4 mx-auto sm:mx-0" />
+            <span className="mt-1 sm:mt-0">AI Meal Plan</span>
           </TabsTrigger>
-          <TabsTrigger value="meal-plans" className="tab-trigger">
-            Meal Plans
+          <TabsTrigger
+            value="history"
+            className="flex flex-col py-3 px-1 h-auto text-xs sm:text-sm sm:flex-row sm:items-center sm:gap-2 data-[state=active]:bg-gray-900 dark:data-[state=active]:bg-gray-800 data-[state=active]:shadow-sm data-[state=active]:text-orange-500 rounded-md transition-all"
+          >
+            <History className="h-4 w-4 mx-auto sm:mx-0" />
+            <span className="mt-1 sm:mt-0">History</span>
           </TabsTrigger>
-          <TabsTrigger value="profile" className="tab-trigger">
-            Profile
+          <TabsTrigger
+            value="calorie-tracker"
+            className="flex flex-col py-3 px-1 h-auto text-xs sm:text-sm sm:flex-row sm:items-center sm:gap-2 data-[state=active]:bg-gray-900 dark:data-[state=active]:bg-gray-800 data-[state=active]:shadow-sm data-[state=active]:text-orange-500 rounded-md transition-all"
+          >
+            <Utensils className="h-4 w-4 mx-auto sm:mx-0" />
+            <span className="mt-1 sm:mt-0">Calorie Tracker</span>
           </TabsTrigger>
-          <TabsTrigger value="chatbot" className="tab-trigger">
-            AI Assistant
+          <TabsTrigger
+            value="chatbot"
+            className="flex flex-col py-3 px-1 h-auto text-xs sm:text-sm sm:flex-row sm:items-center sm:gap-2 data-[state=active]:bg-gray-900 dark:data-[state=active]:bg-gray-800 data-[state=active]:shadow-sm data-[state=active]:text-orange-500 rounded-md transition-all"
+          >
+            <Sparkles className="h-4 w-4 mx-auto sm:mx-0" />
+            <span className="mt-1 sm:mt-0">AI Assistant</span>
           </TabsTrigger>
-          <TabsTrigger value="daily-meal-tracker" className="tab-trigger">
-            Daily Meal Diary
+          <TabsTrigger
+            value="profile"
+            className="flex flex-col py-3 px-1 h-auto text-xs sm:text-sm sm:flex-row sm:items-center sm:gap-2 data-[state=active]:bg-gray-900 dark:data-[state=active]:bg-gray-800 data-[state=active]:shadow-sm data-[state=active]:text-orange-500 rounded-md transition-all"
+          >
+            <User2 className="h-4 w-4 mx-auto sm:mx-0" />
+            <span className="mt-1 sm:mt-0">Profile</span>
           </TabsTrigger>
         </TabsList>
+
         <TabsContent value="overview" className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             <Card className="card-gradient">
@@ -127,19 +148,19 @@ export default function DashboardPage() {
             </Card>
             <Card className="card-gradient">
               <CardHeader className="card-header-gradient">
-                <CardTitle>Daily Meal Diary</CardTitle>
-                <CardDescription className="text-black">Track your meals and nutrition</CardDescription>
+                <CardTitle>AI Meal Plan Generator</CardTitle>
+                <CardDescription className="text-black">Create personalized meal plans</CardDescription>
               </CardHeader>
               <CardContent className="p-6">
                 <div className="text-center space-y-4">
                   <div className="flex justify-center">
-                    <BarChart3 className="h-12 w-12 text-orange-500" />
+                    <Sparkles className="h-12 w-12 text-orange-500" />
                   </div>
-                  <h3 className="text-xl font-medium">Daily Meal Diary</h3>
-                  <p className="text-muted-foreground">Search foods, track meals, and monitor your nutrition</p>
-                  <Link href="/daily-meal-tracker">
-                    <Button className="button-orange w-full">Open Meal Diary</Button>
-                  </Link>
+                  <h3 className="text-xl font-medium">AI-Powered Meal Plans</h3>
+                  <p className="text-muted-foreground">Generate customized meal plans based on your preferences</p>
+                  <Button className="button-orange w-full" onClick={() => setActiveTab("enhanced-meal-plan")}>
+                    Generate Meal Plan
+                  </Button>
                 </div>
               </CardContent>
             </Card>
@@ -147,11 +168,20 @@ export default function DashboardPage() {
           <div className="grid gap-4 md:grid-cols-2">
             <Card className="card-gradient">
               <CardHeader className="card-header-gradient">
-                <CardTitle>Generate Meal Plan</CardTitle>
-                <CardDescription className="text-black">Create a personalized meal plan</CardDescription>
+                <CardTitle>Meal Plan History</CardTitle>
+                <CardDescription className="text-black">View your previous meal plans</CardDescription>
               </CardHeader>
               <CardContent className="p-6">
-                <MealPlanGenerator />
+                <div className="text-center space-y-4">
+                  <div className="flex justify-center">
+                    <History className="h-12 w-12 text-orange-500" />
+                  </div>
+                  <h3 className="text-xl font-medium">Your Meal Plan History</h3>
+                  <p className="text-muted-foreground">Access and review your previously generated meal plans</p>
+                  <Button className="button-orange w-full" onClick={() => setActiveTab("history")}>
+                    View History
+                  </Button>
+                </div>
               </CardContent>
             </Card>
             <Card className="card-gradient">
@@ -165,16 +195,32 @@ export default function DashboardPage() {
             </Card>
           </div>
         </TabsContent>
-        <TabsContent value="meal-plans" className="space-y-4">
+
+        <TabsContent value="enhanced-meal-plan" className="space-y-4">
+          <Card className="card-gradient">
+            <CardHeader className="card-header-gradient">
+              <CardTitle>AI Meal Plan Generator</CardTitle>
+              <CardDescription className="text-black">Create a personalized meal plan with AI</CardDescription>
+            </CardHeader>
+            <CardContent className="p-6">
+              <EnhancedMealPlanGenerator userData={user} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="history" className="space-y-4">
           <MealPlanHistory />
         </TabsContent>
+
         <TabsContent value="profile" className="space-y-4">
           <UserProfile />
         </TabsContent>
+
         <TabsContent value="chatbot" className="space-y-4">
           <Chatbot />
         </TabsContent>
-        <TabsContent value="daily-meal-tracker" className="space-y-4">
+
+        <TabsContent value="calorie-tracker" className="space-y-4">
           <CalorieTracker />
         </TabsContent>
       </Tabs>
