@@ -1,4 +1,4 @@
-import { collection, query, where, getDocs, limit, collectionGroup } from "firebase/firestore"
+import { collection, query, getDocs, limit, collectionGroup } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 
 // Function to search for foods across all sources (IFCT, USDA, custom)
@@ -9,39 +9,71 @@ export async function searchAllFoodSources(searchTerm: string, maxResults = 20) 
   try {
     // Search in IFCT foods
     const ifctFoodsRef = collection(db, "ifct_foods")
-    const ifctQuery = query(ifctFoodsRef, where("keywords", "array-contains", term), limit(Math.floor(maxResults / 2)))
 
+    // Try to find foods that start with the search term
+    // This is a simple approach - in a production app, you might want to use
+    // a more sophisticated search like Algolia or Firebase's full-text search
+    const ifctQuery = query(ifctFoodsRef, limit(maxResults))
     const ifctSnapshot = await getDocs(ifctQuery)
 
     ifctSnapshot.forEach((doc) => {
       const data = doc.data()
-      results.push({
-        id: doc.id,
-        name: data.name || "Unknown Food",
-        source: "ifct",
-        nutrients: data.nutrients || {
-          calories: 0,
-          protein: 0,
-          carbohydrates: 0,
-          fat: 0,
-        },
-      })
+      const name = (data.name || "").toLowerCase()
+
+      // Check if the food name starts with the search term
+      if (name.startsWith(term)) {
+        results.push({
+          id: doc.id,
+          name: data.name || "Unknown Food",
+          source: "ifct",
+          nutrients: data.nutrients || {
+            calories: 0,
+            protein: 0,
+            carbohydrates: 0,
+            fat: 0,
+          },
+        })
+      }
     })
+
+    // If we don't have enough results, try a contains match
+    if (results.length < maxResults / 2) {
+      ifctSnapshot.forEach((doc) => {
+        const data = doc.data()
+        const name = (data.name || "").toLowerCase()
+
+        // Check if the food name contains the search term but doesn't start with it
+        // (to avoid duplicates from the previous check)
+        if (!name.startsWith(term) && name.includes(term)) {
+          results.push({
+            id: doc.id,
+            name: data.name || "Unknown Food",
+            source: "ifct",
+            nutrients: data.nutrients || {
+              calories: 0,
+              protein: 0,
+              carbohydrates: 0,
+              fat: 0,
+            },
+          })
+        }
+      })
+    }
 
     // Search in custom foods
     const customFoodsRef = collectionGroup(db, "foodDatabase")
-    const customQuery = query(customFoodsRef, limit(Math.floor(maxResults / 4)))
+    const customQuery = query(customFoodsRef, limit(maxResults))
     const customSnapshot = await getDocs(customQuery)
 
     customSnapshot.forEach((doc) => {
       const data = doc.data()
-      const foodName = data.name || data.foodName || ""
+      const foodName = (data.name || data.foodName || "").toLowerCase()
 
-      // Only include if it matches the search term
-      if (foodName.toLowerCase().includes(term)) {
+      // Prioritize foods that start with the search term
+      if (foodName.startsWith(term)) {
         results.push({
           id: doc.id,
-          name: foodName,
+          name: data.name || data.foodName || "Custom Food",
           source: "custom",
           nutrients: {
             calories: data.nutrients?.calories || data.nutritionalInfo?.calories || 0,
@@ -53,6 +85,28 @@ export async function searchAllFoodSources(searchTerm: string, maxResults = 20) 
       }
     })
 
+    // Add foods that contain the term but don't start with it
+    if (results.length < maxResults) {
+      customSnapshot.forEach((doc) => {
+        const data = doc.data()
+        const foodName = (data.name || data.foodName || "").toLowerCase()
+
+        if (!foodName.startsWith(term) && foodName.includes(term)) {
+          results.push({
+            id: doc.id,
+            name: data.name || data.foodName || "Custom Food",
+            source: "custom",
+            nutrients: {
+              calories: data.nutrients?.calories || data.nutritionalInfo?.calories || 0,
+              protein: data.nutrients?.protein || data.nutritionalInfo?.protein || 0,
+              carbohydrates: data.nutrients?.carbohydrates || data.nutritionalInfo?.carbs || 0,
+              fat: data.nutrients?.fat || data.nutritionalInfo?.fat || 0,
+            },
+          })
+        }
+      })
+    }
+
     // If we have fewer than maxResults, try to search USDA via our API
     if (results.length < maxResults) {
       try {
@@ -62,7 +116,20 @@ export async function searchAllFoodSources(searchTerm: string, maxResults = 20) 
           if (data.foods && data.foods.length > 0) {
             const remainingSlots = maxResults - results.length
 
-            data.foods.slice(0, remainingSlots).forEach((food: any) => {
+            // Sort USDA foods to prioritize those that start with the search term
+            const usdaFoods = data.foods.sort((a: any, b: any) => {
+              const aName = (a.description || "").toLowerCase()
+              const bName = (b.description || "").toLowerCase()
+
+              const aStartsWith = aName.startsWith(term)
+              const bStartsWith = bName.startsWith(term)
+
+              if (aStartsWith && !bStartsWith) return -1
+              if (!aStartsWith && bStartsWith) return 1
+              return 0
+            })
+
+            usdaFoods.slice(0, remainingSlots).forEach((food: any) => {
               // Extract nutrients
               const nutrients = food.foodNutrients || []
               const calories = nutrients.find((n: any) => n.nutrientNumber === "208")?.value || 0

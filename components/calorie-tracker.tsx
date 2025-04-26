@@ -83,6 +83,7 @@ export function CalorieTracker() {
   const [newNote, setNewNote] = useState("")
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
   const [hasUser, setHasUser] = useState(false)
+  const [isUserLoading, setIsUserLoading] = useState(true)
 
   // Calculate daily totals
   const dailyTotals = diaryEntries.reduce(
@@ -123,7 +124,10 @@ export function CalorieTracker() {
     let unsubscribe: (() => void) | undefined
 
     const loadUserData = async () => {
-      if (!user?.uid) return
+      if (!user?.uid) {
+        setIsUserLoading(false)
+        return
+      }
 
       try {
         // Load daily goals
@@ -156,11 +160,15 @@ export function CalorieTracker() {
       } catch (error) {
         console.error("Error loading user data:", error)
         // Don't set an error state here, just use the default values
+      } finally {
+        setIsUserLoading(false)
       }
     }
 
     if (hasUser) {
       loadUserData()
+    } else {
+      setIsUserLoading(false)
     }
 
     return () => {
@@ -189,7 +197,7 @@ export function CalorieTracker() {
   }
 
   // If still loading, show a loading indicator
-  if (loading) {
+  if (loading || isUserLoading) {
     return (
       <Card className="card-gradient">
         <CardHeader>
@@ -232,7 +240,7 @@ export function CalorieTracker() {
     }
   }, [diaryEntries, user?.uid])
 
-  // Debounced search function
+  // Improved search function that responds immediately to user input
   const debouncedSearch = useCallback(
     (() => {
       let timeout: NodeJS.Timeout | null = null
@@ -242,13 +250,19 @@ export function CalorieTracker() {
           clearTimeout(timeout)
         }
 
+        // If the search term is empty, clear results
         if (!term.trim()) {
           setSearchResults([])
           setIsSearching(false)
           return
         }
 
+        // Set searching state immediately
         setIsSearching(true)
+
+        // Use a very short timeout for the first few characters to make it feel instant
+        const debounceTime = term.length <= 2 ? 50 : 200
+
         timeout = setTimeout(async () => {
           try {
             // First try to use the imported function
@@ -268,7 +282,7 @@ export function CalorieTracker() {
           } finally {
             setIsSearching(false)
           }
-        }, 300) // 300ms debounce
+        }, debounceTime)
       }
     })(),
     [],
@@ -278,14 +292,21 @@ export function CalorieTracker() {
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const term = e.target.value
     setSearchTerm(term)
-    setShowSearchResults(true)
-    debouncedSearch(term)
+
+    // Always show search results when typing, even with a single character
+    if (term.trim().length > 0) {
+      setShowSearchResults(true)
+      debouncedSearch(term)
+    } else {
+      setShowSearchResults(false)
+      setSearchResults([])
+    }
   }
 
   // Fallback search function if the imported one fails
   const fallbackFoodSearch = async (term: string) => {
     // Basic implementation that returns some default foods
-    return [
+    const foods = [
       {
         id: "default-1",
         name: "Banana",
@@ -319,7 +340,43 @@ export function CalorieTracker() {
           fat: 0.3,
         },
       },
-    ].filter((food) => food.name.toLowerCase().includes(term.toLowerCase()))
+      {
+        id: "default-4",
+        name: "Bread, white",
+        source: "default",
+        nutrition: {
+          calories: 75,
+          protein: 2.6,
+          carbs: 14,
+          fat: 1.0,
+        },
+      },
+      {
+        id: "default-5",
+        name: "Butter",
+        source: "default",
+        nutrition: {
+          calories: 102,
+          protein: 0.1,
+          carbs: 0.1,
+          fat: 11.5,
+        },
+      },
+      {
+        id: "default-6",
+        name: "Broccoli",
+        source: "default",
+        nutrition: {
+          calories: 34,
+          protein: 2.8,
+          carbs: 6.6,
+          fat: 0.4,
+        },
+      },
+    ]
+
+    // Filter foods that start with the search term (case insensitive)
+    return foods.filter((food) => food.name.toLowerCase().startsWith(term.toLowerCase()))
   }
 
   const handleFoodSelect = (food: any) => {
@@ -559,7 +616,7 @@ export function CalorieTracker() {
 
                 {showSearchResults && searchResults.length === 0 && isSearching && (
                   <div className="absolute z-20 mt-1 w-full bg-gray-900 border border-gray-700 rounded-md shadow-lg p-3">
-                    Searching...
+                    Searching for "{searchTerm}"...
                   </div>
                 )}
 
