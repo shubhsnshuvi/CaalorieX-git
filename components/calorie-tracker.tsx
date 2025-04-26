@@ -82,8 +82,8 @@ export function CalorieTracker() {
   const [diaryEntries, setDiaryEntries] = useState<DiaryEntry[]>([])
   const [newNote, setNewNote] = useState("")
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
-  const [hasUser, setHasUser] = useState(false)
   const [isUserLoading, setIsUserLoading] = useState(true)
+  const [hasUserLoadedOnce, setHasUserLoadedOnce] = useState(false)
 
   // Calculate daily totals
   const dailyTotals = diaryEntries.reduce(
@@ -117,15 +117,13 @@ export function CalorieTracker() {
 
   // Load user's daily goals and diary entries from Firestore
   useEffect(() => {
-    setHasUser(!!user?.uid)
-  }, [user?.uid])
-
-  useEffect(() => {
-    let unsubscribe: (() => void) | undefined
+    setIsUserLoading(true)
 
     const loadUserData = async () => {
       if (!user?.uid) {
-        setIsUserLoading(false)
+        if (hasUserLoadedOnce) {
+          setIsUserLoading(false)
+        }
         return
       }
 
@@ -162,21 +160,12 @@ export function CalorieTracker() {
         // Don't set an error state here, just use the default values
       } finally {
         setIsUserLoading(false)
+        setHasUserLoadedOnce(true)
       }
     }
 
-    if (hasUser) {
-      loadUserData()
-    } else {
-      setIsUserLoading(false)
-    }
-
-    return () => {
-      if (unsubscribe) {
-        unsubscribe()
-      }
-    }
-  }, [hasUser])
+    loadUserData()
+  }, [user?.uid, hasUserLoadedOnce])
 
   // If there's an error loading user data, show an error message with a retry button
   if (error) {
