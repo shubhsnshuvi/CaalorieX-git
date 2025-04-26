@@ -1,18 +1,22 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import type React from "react"
+
+import { useState, useEffect, useCallback } from "react"
 import { useAuth } from "@/lib/use-auth"
 import { searchAllFoodSources } from "@/lib/firestore-utils"
 import { calculateIFCTNutritionForPortion } from "@/lib/ifct-api"
 import { calculateNutritionForPortion } from "@/lib/usda-api"
-import { PlusCircle, Trash2, Search, ChevronDown, ChevronUp, X, RefreshCw } from "lucide-react"
+import { PlusCircle, Trash2, X, RefreshCw, Edit, Save, FileText } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
 import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 // Types
 interface FoodItem {
@@ -31,13 +35,17 @@ interface FoodItem {
     carbs: number
     fat: number
   }
+  timestamp: number
 }
 
-interface MealData {
-  name: string
-  foods: FoodItem[]
-  isOpen: boolean
+interface NoteItem {
+  id: string
+  content: string
+  timestamp: number
+  isEditing?: boolean
 }
+
+type DiaryEntry = FoodItem | NoteItem
 
 interface DailyGoals {
   calories: number
@@ -46,13 +54,22 @@ interface DailyGoals {
   fat: number
 }
 
+// Helper function to check if an item is a food item
+const isFoodItem = (item: DiaryEntry): item is FoodItem => {
+  return (item as FoodItem).nutrition !== undefined
+}
+
+// Helper function to check if an item is a note
+const isNoteItem = (item: DiaryEntry): item is NoteItem => {
+  return (item as NoteItem).content !== undefined
+}
+
 export function CalorieTracker() {
   const { user, userData, loading, error, refreshUserData } = useAuth()
   const [searchTerm, setSearchTerm] = useState("")
   const [searchResults, setSearchResults] = useState<any[]>([])
   const [isSearching, setIsSearching] = useState(false)
   const [selectedFood, setSelectedFood] = useState<any | null>(null)
-  const [selectedMeal, setSelectedMeal] = useState("breakfast")
   const [quantity, setQuantity] = useState(1)
   const [servingSize, setServingSize] = useState<{ amount: number; unit: string }>({ amount: 100, unit: "g" })
   const [showSearchResults, setShowSearchResults] = useState(false)
@@ -62,32 +79,20 @@ export function CalorieTracker() {
     carbs: 250,
     fat: 70,
   })
-
-  const [meals, setMeals] = useState<MealData[]>([
-    { name: "Breakfast", foods: [], isOpen: true },
-    { name: "Lunch", foods: [], isOpen: true },
-    { name: "Dinner", foods: [], isOpen: true },
-    { name: "Snacks", foods: [], isOpen: true },
-  ])
+  const [diaryEntries, setDiaryEntries] = useState<DiaryEntry[]>([])
+  const [newNote, setNewNote] = useState("")
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
+  const [hasUser, setHasUser] = useState(false)
 
   // Calculate daily totals
-  const dailyTotals = meals.reduce(
-    (acc, meal) => {
-      const mealTotals = meal.foods.reduce(
-        (mealAcc, food) => {
-          mealAcc.calories += food.nutrition.calories * food.quantity
-          mealAcc.protein += food.nutrition.protein * food.quantity
-          mealAcc.carbs += food.nutrition.carbs * food.quantity
-          mealAcc.fat += food.nutrition.fat * food.quantity
-          return mealAcc
-        },
-        { calories: 0, protein: 0, carbs: 0, fat: 0 },
-      )
-
-      acc.calories += mealTotals.calories
-      acc.protein += mealTotals.protein
-      acc.carbs += mealTotals.carbs
-      acc.fat += mealTotals.fat
+  const dailyTotals = diaryEntries.reduce(
+    (acc, entry) => {
+      if (isFoodItem(entry)) {
+        acc.calories += entry.nutrition.calories * entry.quantity
+        acc.protein += entry.nutrition.protein * entry.quantity
+        acc.carbs += entry.nutrition.carbs * entry.quantity
+        acc.fat += entry.nutrition.fat * entry.quantity
+      }
       return acc
     },
     { calories: 0, protein: 0, carbs: 0, fat: 0 },
@@ -109,7 +114,11 @@ export function CalorieTracker() {
     fat: Math.min(100, (dailyTotals.fat / dailyGoals.fat) * 100),
   }
 
-  // Load user's daily goals and meals from Firestore
+  // Load user's daily goals and diary entries from Firestore
+  useEffect(() => {
+    setHasUser(!!user?.uid)
+  }, [user?.uid])
+
   useEffect(() => {
     let unsubscribe: (() => void) | undefined
 
@@ -128,25 +137,20 @@ export function CalorieTracker() {
           await setDoc(goalsDocRef, dailyGoals)
         }
 
-        // Load today's meals
+        // Load today's diary entries
         const today = new Date().toISOString().split("T")[0]
 
         // Create the parent documents if they don't exist
         const nutritionDocRef = doc(db, "users", user.uid, "nutrition", "dailyLogs")
         await setDoc(nutritionDocRef, { lastUpdated: new Date() }, { merge: true })
 
-        const mealsDocRef = doc(db, "users", user.uid, "nutrition", "dailyLogs", "logs", today)
-        const mealsDoc = await getDoc(mealsDocRef)
+        const diaryDocRef = doc(db, "users", user.uid, "nutrition", "dailyLogs", "logs", today)
+        const diaryDoc = await getDoc(diaryDocRef)
 
-        if (mealsDoc.exists()) {
-          const data = mealsDoc.data()
-          if (data.meals) {
-            // Ensure the loaded meals have the isOpen property
-            const loadedMeals = data.meals.map((meal: any) => ({
-              ...meal,
-              isOpen: true,
-            }))
-            setMeals(loadedMeals)
+        if (diaryDoc.exists()) {
+          const data = diaryDoc.data()
+          if (data.entries) {
+            setDiaryEntries(data.entries)
           }
         }
       } catch (error) {
@@ -155,7 +159,7 @@ export function CalorieTracker() {
       }
     }
 
-    if (user?.uid) {
+    if (hasUser) {
       loadUserData()
     }
 
@@ -164,7 +168,7 @@ export function CalorieTracker() {
         unsubscribe()
       }
     }
-  }, [user?.uid])
+  }, [hasUser])
 
   // If there's an error loading user data, show an error message with a retry button
   if (error) {
@@ -198,9 +202,9 @@ export function CalorieTracker() {
     )
   }
 
-  // Save meals to Firestore whenever they change
+  // Save diary entries to Firestore whenever they change
   useEffect(() => {
-    const saveMeals = async () => {
+    const saveDiaryEntries = async () => {
       if (!user?.uid) return
 
       try {
@@ -210,54 +214,72 @@ export function CalorieTracker() {
         const nutritionDocRef = doc(db, "users", user.uid, "nutrition", "dailyLogs")
         await setDoc(nutritionDocRef, { lastUpdated: new Date() }, { merge: true })
 
-        const mealsDocRef = doc(db, "users", user.uid, "nutrition", "dailyLogs", "logs", today)
+        const diaryDocRef = doc(db, "users", user.uid, "nutrition", "dailyLogs", "logs", today)
 
-        // Only save the necessary data (exclude isOpen state)
-        const mealsToSave = meals.map((meal) => ({
-          name: meal.name,
-          foods: meal.foods,
-        }))
-
-        await setDoc(mealsDocRef, { meals: mealsToSave, updatedAt: new Date() }, { merge: true })
+        // Save the diary entries
+        await setDoc(diaryDocRef, { entries: diaryEntries, updatedAt: new Date() }, { merge: true })
       } catch (error) {
-        console.error("Error saving meals:", error)
+        console.error("Error saving diary entries:", error)
         // Don't show an error to the user, just log it
       }
     }
 
-    // Only save if we have meals and a user
-    if (user?.uid && meals.some((meal) => meal.foods.length > 0)) {
+    // Only save if we have entries and a user
+    if (user?.uid && diaryEntries.length > 0) {
       // Debounce the save operation to avoid too many writes
-      const timeoutId = setTimeout(saveMeals, 1000)
+      const timeoutId = setTimeout(saveDiaryEntries, 1000)
       return () => clearTimeout(timeoutId)
     }
-  }, [meals, user?.uid])
+  }, [diaryEntries, user?.uid])
 
-  // Search for foods
-  const handleSearch = async () => {
-    if (!searchTerm.trim()) return
+  // Debounced search function
+  const debouncedSearch = useCallback(
+    (() => {
+      let timeout: NodeJS.Timeout | null = null
 
-    setIsSearching(true)
-    setShowSearchResults(true)
+      return (term: string) => {
+        if (timeout) {
+          clearTimeout(timeout)
+        }
 
-    try {
-      // First try to use the imported function
-      let results = []
-      try {
-        results = await searchAllFoodSources(searchTerm.trim(), 20)
-      } catch (searchError) {
-        console.error("Error with searchAllFoodSources:", searchError)
-        // Fallback to a basic search implementation
-        results = await fallbackFoodSearch(searchTerm.trim())
+        if (!term.trim()) {
+          setSearchResults([])
+          setIsSearching(false)
+          return
+        }
+
+        setIsSearching(true)
+        timeout = setTimeout(async () => {
+          try {
+            // First try to use the imported function
+            let results = []
+            try {
+              results = await searchAllFoodSources(term.trim(), 20)
+            } catch (searchError) {
+              console.error("Error with searchAllFoodSources:", searchError)
+              // Fallback to a basic search implementation
+              results = await fallbackFoodSearch(term.trim())
+            }
+
+            setSearchResults(results)
+          } catch (error) {
+            console.error("Error searching for foods:", error)
+            setSearchResults([])
+          } finally {
+            setIsSearching(false)
+          }
+        }, 300) // 300ms debounce
       }
+    })(),
+    [],
+  )
 
-      setSearchResults(results)
-    } catch (error) {
-      console.error("Error searching for foods:", error)
-      setSearchResults([])
-    } finally {
-      setIsSearching(false)
-    }
+  // Handle search input change
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const term = e.target.value
+    setSearchTerm(term)
+    setShowSearchResults(true)
+    debouncedSearch(term)
   }
 
   // Fallback search function if the imported one fails
@@ -305,8 +327,8 @@ export function CalorieTracker() {
     setShowSearchResults(false)
   }
 
-  // Add food to meal
-  const addFoodToMeal = () => {
+  // Add food to diary
+  const addFoodToDiary = () => {
     if (!selectedFood) return
 
     // Calculate nutrition based on the food source
@@ -347,7 +369,7 @@ export function CalorieTracker() {
     }
 
     const newFood: FoodItem = {
-      id: `${selectedFood.id || "unknown"}-${Date.now()}`,
+      id: `food-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
       name: selectedFood.name || selectedFood.foodName || selectedFood.description || "Unknown Food",
       source: selectedFood.source || "unknown",
       quantity: quantity,
@@ -357,35 +379,52 @@ export function CalorieTracker() {
         description: `${servingSize.amount} ${servingSize.unit}`,
       },
       nutrition,
+      timestamp: Date.now(),
     }
 
-    setMeals((prevMeals) =>
-      prevMeals.map((meal) =>
-        meal.name.toLowerCase() === selectedMeal.toLowerCase() ? { ...meal, foods: [...meal.foods, newFood] } : meal,
-      ),
-    )
+    setDiaryEntries((prev) => [...prev, newFood].sort((a, b) => a.timestamp - b.timestamp))
 
     // Reset selection
     setSelectedFood(null)
     setQuantity(1)
+    setSearchTerm("")
   }
 
-  // Remove food from meal
-  const removeFoodFromMeal = (mealName: string, foodId: string) => {
-    setMeals((prevMeals) =>
-      prevMeals.map((meal) =>
-        meal.name.toLowerCase() === mealName.toLowerCase()
-          ? { ...meal, foods: meal.foods.filter((food) => food.id !== foodId) }
-          : meal,
-      ),
-    )
+  // Add note to diary
+  const addNoteToDiary = () => {
+    if (!newNote.trim()) return
+
+    const note: NoteItem = {
+      id: `note-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+      content: newNote.trim(),
+      timestamp: Date.now(),
+    }
+
+    setDiaryEntries((prev) => [...prev, note].sort((a, b) => a.timestamp - b.timestamp))
+    setNewNote("")
   }
 
-  // Toggle meal section
-  const toggleMealSection = (mealName: string) => {
-    setMeals((prevMeals) =>
-      prevMeals.map((meal) => (meal.name === mealName ? { ...meal, isOpen: !meal.isOpen } : meal)),
+  // Start editing a note
+  const startEditingNote = (id: string) => {
+    setEditingNoteId(id)
+  }
+
+  // Save edited note
+  const saveEditedNote = (id: string, content: string) => {
+    setDiaryEntries((prev) =>
+      prev.map((entry) => {
+        if (isNoteItem(entry) && entry.id === id) {
+          return { ...entry, content }
+        }
+        return entry
+      }),
     )
+    setEditingNoteId(null)
+  }
+
+  // Remove entry from diary
+  const removeEntryFromDiary = (id: string) => {
+    setDiaryEntries((prev) => prev.filter((entry) => entry.id !== id))
   }
 
   // Update daily goals
@@ -423,7 +462,7 @@ export function CalorieTracker() {
                 <div className="flex justify-between">
                   <span>Calories</span>
                   <span>
-                    {dailyTotals.calories} / {dailyGoals.calories}
+                    {Math.round(dailyTotals.calories)} / {dailyGoals.calories}
                   </span>
                 </div>
                 <Progress
@@ -436,7 +475,7 @@ export function CalorieTracker() {
                 <div className="flex justify-between">
                   <span>Protein</span>
                   <span>
-                    {dailyTotals.protein}g / {dailyGoals.protein}g
+                    {Math.round(dailyTotals.protein)}g / {dailyGoals.protein}g
                   </span>
                 </div>
                 <Progress value={percentages.protein} className="h-2" indicatorClassName="bg-blue-500" />
@@ -445,7 +484,7 @@ export function CalorieTracker() {
                 <div className="flex justify-between">
                   <span>Carbs</span>
                   <span>
-                    {dailyTotals.carbs}g / {dailyGoals.carbs}g
+                    {Math.round(dailyTotals.carbs)}g / {dailyGoals.carbs}g
                   </span>
                 </div>
                 <Progress value={percentages.carbs} className="h-2" indicatorClassName="bg-green-500" />
@@ -454,7 +493,7 @@ export function CalorieTracker() {
                 <div className="flex justify-between">
                   <span>Fat</span>
                   <span>
-                    {dailyTotals.fat}g / {dailyGoals.fat}g
+                    {Math.round(dailyTotals.fat)}g / {dailyGoals.fat}g
                   </span>
                 </div>
                 <Progress value={percentages.fat} className="h-2" indicatorClassName="bg-yellow-500" />
@@ -473,20 +512,13 @@ export function CalorieTracker() {
           <div className="space-y-4">
             <div className="flex flex-col md:flex-row gap-2">
               <div className="relative flex-grow">
-                <div className="flex">
-                  <Input
-                    type="text"
-                    placeholder="Search for a food (e.g., banana, roti, rice)"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                    className="input-dark flex-grow"
-                  />
-                  <Button onClick={handleSearch} className="ml-2 button-orange" disabled={isSearching}>
-                    <Search className="h-4 w-4 mr-1" />
-                    Search
-                  </Button>
-                </div>
+                <Input
+                  type="text"
+                  placeholder="Search for a food (e.g., banana, roti, rice)"
+                  value={searchTerm}
+                  onChange={handleSearchChange}
+                  className="input-dark flex-grow"
+                />
 
                 {showSearchResults && searchResults.length > 0 && (
                   <div className="absolute z-20 mt-1 w-full bg-gray-900 border border-gray-700 rounded-md shadow-lg max-h-60 overflow-y-auto">
@@ -525,7 +557,13 @@ export function CalorieTracker() {
                   </div>
                 )}
 
-                {showSearchResults && searchResults.length === 0 && !isSearching && (
+                {showSearchResults && searchResults.length === 0 && isSearching && (
+                  <div className="absolute z-20 mt-1 w-full bg-gray-900 border border-gray-700 rounded-md shadow-lg p-3">
+                    Searching...
+                  </div>
+                )}
+
+                {showSearchResults && searchResults.length === 0 && !isSearching && searchTerm.trim() !== "" && (
                   <div className="absolute z-20 mt-1 w-full bg-gray-900 border border-gray-700 rounded-md shadow-lg p-3">
                     No foods found. Try a different search term.
                   </div>
@@ -538,21 +576,7 @@ export function CalorieTracker() {
                 <h3 className="font-medium mb-2">
                   {selectedFood.name || selectedFood.foodName || selectedFood.description}
                 </h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm mb-1">Meal</label>
-                    <Select value={selectedMeal} onValueChange={setSelectedMeal}>
-                      <SelectTrigger className="select-dark">
-                        <SelectValue placeholder="Select meal" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="breakfast">Breakfast</SelectItem>
-                        <SelectItem value="lunch">Lunch</SelectItem>
-                        <SelectItem value="dinner">Dinner</SelectItem>
-                        <SelectItem value="snacks">Snacks</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm mb-1">Serving Size</label>
                     <div className="flex items-center">
@@ -600,124 +624,172 @@ export function CalorieTracker() {
                   <Button variant="outline" onClick={() => setSelectedFood(null)} className="mr-2 button-outline">
                     Cancel
                   </Button>
-                  <Button onClick={addFoodToMeal} className="button-orange">
+                  <Button onClick={addFoodToDiary} className="button-orange">
                     <PlusCircle className="h-4 w-4 mr-1" />
-                    Add to {selectedMeal}
+                    Add Food
                   </Button>
                 </div>
               </div>
             )}
+
+            {/* Add Note Section */}
+            <div className="mt-4">
+              <label className="block text-sm mb-1">Add Note</label>
+              <div className="flex items-start gap-2">
+                <Textarea
+                  placeholder="Add a note (e.g., 'Feeling hungry today', 'Skipped breakfast')"
+                  value={newNote}
+                  onChange={(e) => setNewNote(e.target.value)}
+                  className="input-dark flex-grow"
+                  rows={2}
+                />
+                <Button onClick={addNoteToDiary} className="button-orange mt-1" disabled={!newNote.trim()}>
+                  <FileText className="h-4 w-4 mr-1" />
+                  Add Note
+                </Button>
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Meal Sections */}
-      <div className="space-y-4">
-        {meals.map((meal) => (
-          <Card key={meal.name} className="card-gradient overflow-hidden">
-            <div
-              className="flex justify-between items-center p-4 cursor-pointer"
-              onClick={() => toggleMealSection(meal.name)}
-            >
-              <div className="flex items-center">
-                <h3 className="text-lg font-medium">{meal.name}</h3>
-                <div className="ml-2 text-sm text-gray-400">
-                  {meal.foods.length} {meal.foods.length === 1 ? "item" : "items"} |{" "}
-                  {meal.foods.reduce((acc, food) => acc + food.nutrition.calories * food.quantity, 0)} kcal
-                </div>
-              </div>
-              <Button variant="ghost" size="sm" className="p-0 h-8 w-8">
-                {meal.isOpen ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
-              </Button>
-            </div>
-
-            {meal.isOpen && (
-              <div className="px-4 pb-4">
-                {meal.foods.length === 0 ? (
-                  <div className="text-center py-6 text-gray-500">No foods added to {meal.name.toLowerCase()} yet.</div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="text-left border-b border-gray-700">
-                          <th className="pb-2">Food</th>
-                          <th className="pb-2">Amount</th>
-                          <th className="pb-2 text-right">Calories</th>
-                          <th className="pb-2 text-right">Protein</th>
-                          <th className="pb-2 text-right">Carbs</th>
-                          <th className="pb-2 text-right">Fat</th>
-                          <th className="pb-2"></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {meal.foods.map((food) => (
-                          <tr key={food.id} className="border-b border-gray-800">
-                            <td className="py-2">{food.name}</td>
-                            <td className="py-2">
-                              {food.quantity} × {food.servingSize.amount}
-                              {food.servingSize.unit}
-                            </td>
-                            <td className="py-2 text-right">{Math.round(food.nutrition.calories * food.quantity)}</td>
-                            <td className="py-2 text-right">{Math.round(food.nutrition.protein * food.quantity)}g</td>
-                            <td className="py-2 text-right">{Math.round(food.nutrition.carbs * food.quantity)}g</td>
-                            <td className="py-2 text-right">{Math.round(food.nutrition.fat * food.quantity)}g</td>
-                            <td className="py-2 text-right">
+      {/* Food Diary */}
+      <Card className="card-gradient">
+        <CardHeader>
+          <CardTitle>Food Diary</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {diaryEntries.length === 0 ? (
+            <div className="text-center py-6 text-gray-500">No entries yet. Add foods or notes to get started.</div>
+          ) : (
+            <div className="space-y-4">
+              {diaryEntries.map((entry) => {
+                if (isFoodItem(entry)) {
+                  // Render food item
+                  return (
+                    <div key={entry.id} className="bg-gray-800 p-3 rounded-md flex justify-between items-center">
+                      <div>
+                        <div className="font-medium">{entry.name}</div>
+                        <div className="text-sm text-gray-400">
+                          {entry.quantity} × {entry.servingSize.amount}
+                          {entry.servingSize.unit}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="text-right">
+                          <div>{Math.round(entry.nutrition.calories * entry.quantity)} kcal</div>
+                          <div className="text-xs text-gray-400">
+                            P: {Math.round(entry.nutrition.protein * entry.quantity)}g | C:{" "}
+                            {Math.round(entry.nutrition.carbs * entry.quantity)}g | F:{" "}
+                            {Math.round(entry.nutrition.fat * entry.quantity)}g
+                          </div>
+                        </div>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => removeFoodFromMeal(meal.name, food.id)}
-                                className="h-8 w-8 p-0 text-red-500 hover:text-red-400 hover:bg-gray-800"
+                                onClick={() => removeEntryFromDiary(entry.id)}
+                                className="h-8 w-8 p-0 text-red-500 hover:text-red-400 hover:bg-gray-700"
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                      <tfoot>
-                        <tr className="font-medium">
-                          <td className="pt-2" colSpan={2}>
-                            Total
-                          </td>
-                          <td className="pt-2 text-right">
-                            {meal.foods.reduce((acc, food) => acc + food.nutrition.calories * food.quantity, 0)}
-                          </td>
-                          <td className="pt-2 text-right">
-                            {meal.foods.reduce((acc, food) => acc + food.nutrition.protein * food.quantity, 0)}g
-                          </td>
-                          <td className="pt-2 text-right">
-                            {meal.foods.reduce((acc, food) => acc + food.nutrition.carbs * food.quantity, 0)}g
-                          </td>
-                          <td className="pt-2 text-right">
-                            {meal.foods.reduce((acc, food) => acc + food.nutrition.fat * food.quantity, 0)}g
-                          </td>
-                          <td></td>
-                        </tr>
-                      </tfoot>
-                    </table>
-                  </div>
-                )}
-
-                <div className="mt-4">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setSelectedMeal(meal.name.toLowerCase())
-                      setSearchTerm("")
-                      setShowSearchResults(false)
-                    }}
-                    className="button-outline"
-                  >
-                    <PlusCircle className="h-4 w-4 mr-1" />
-                    Add Food to {meal.name}
-                  </Button>
-                </div>
-              </div>
-            )}
-          </Card>
-        ))}
-      </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Remove food</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </div>
+                    </div>
+                  )
+                } else if (isNoteItem(entry)) {
+                  // Render note item
+                  return (
+                    <div key={entry.id} className="bg-gray-700 p-3 rounded-md border-l-4 border-orange-500">
+                      {editingNoteId === entry.id ? (
+                        <div className="flex flex-col gap-2">
+                          <Textarea
+                            defaultValue={entry.content}
+                            className="input-dark"
+                            rows={2}
+                            id={`note-edit-${entry.id}`}
+                          />
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setEditingNoteId(null)}
+                              className="button-outline"
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={() => {
+                                const textarea = document.getElementById(`note-edit-${entry.id}`) as HTMLTextAreaElement
+                                if (textarea) {
+                                  saveEditedNote(entry.id, textarea.value)
+                                }
+                              }}
+                              className="button-orange"
+                            >
+                              <Save className="h-4 w-4 mr-1" />
+                              Save
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex justify-between items-start">
+                          <div className="whitespace-pre-wrap">{entry.content}</div>
+                          <div className="flex gap-1">
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => startEditingNote(entry.id)}
+                                    className="h-8 w-8 p-0 text-gray-300 hover:text-white hover:bg-gray-600"
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Edit note</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => removeEntryFromDiary(entry.id)}
+                                    className="h-8 w-8 p-0 text-red-500 hover:text-red-400 hover:bg-gray-700"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Remove note</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                }
+                return null
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Nutrition Goals Settings */}
       <Card className="card-gradient">
