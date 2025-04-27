@@ -36,7 +36,7 @@
 
 @layer components {
   .card-gradient {
-    @apply bg-gradient-to-br from-gray-900 to-black border-0 shadow-md;
+    @apply bg-gradient-to-br from-gray-900 to-black border border-gray-800 shadow-md;
   }
 
   .card-header-gradient {
@@ -44,15 +44,15 @@
   }
 
   .button-orange {
-    @apply bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-black shadow-md;
+    @apply bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-black shadow-md transition-all duration-300;
   }
 
   .button-outline {
-    @apply border border-gray-700 hover:bg-gray-800;
+    @apply border border-gray-700 hover:bg-gray-800 transition-all duration-200;
   }
 
   .input-dark {
-    @apply bg-gray-800 border-gray-700 focus:border-orange-500 focus:ring-orange-500;
+    @apply bg-gray-800 border-gray-700 focus:border-orange-500 focus:ring-orange-500 transition-all duration-200;
   }
 
   .select-dark {
@@ -60,10 +60,38 @@
   }
 
   .tabs-list {
-    @apply bg-gray-800/80 backdrop-blur-sm p-1;
+    @apply bg-gray-800/80 backdrop-blur-sm p-1 rounded-xl;
   }
 
   .tab-trigger {
     @apply data-[state=active]:bg-gray-900 data-[state=active]:shadow-sm data-[state=active]:text-orange-500;
+  }
+
+  .premium-card {
+    @apply relative overflow-hidden border border-gray-800 shadow-lg hover:shadow-xl transition-all duration-300;
+  }
+
+  .premium-card-header {
+    @apply relative z-10 border-b border-gray-800;
+  }
+
+  .premium-card-gradient {
+    @apply absolute inset-0 bg-gradient-to-br from-gray-900 via-gray-800 to-black opacity-100;
+  }
+
+  .premium-card-content {
+    @apply relative z-10;
+  }
+
+  .premium-highlight {
+    @apply bg-gradient-to-r from-orange-500 to-orange-600 bg-clip-text text-transparent;
+  }
+
+  .premium-icon-container {
+    @apply p-2 rounded-full bg-orange-500/10;
+  }
+
+  .premium-icon {
+    @apply text-orange-500;
   }
 }

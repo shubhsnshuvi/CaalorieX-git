@@ -13,7 +13,7 @@ import { DietitianCard } from "@/components/dietitian-card"
 import { EnhancedMealPlanGenerator } from "@/components/enhanced-meal-plan-generator"
 import { Chatbot } from "@/components/chatbot"
 import { BMICalculator } from "@/components/bmi-calculator"
-import { History, User2, Sparkles, Utensils, RefreshCw } from "lucide-react"
+import { History, User2, Sparkles, Utensils, RefreshCw, BarChart3, FileText, MessageSquare } from "lucide-react"
 import Link from "next/link"
 
 export default function DashboardPage() {
@@ -67,7 +67,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="flex-1 space-y-4 p-4 md:p-8">
+    <div className="flex-1 space-y-6 p-4 md:p-8">
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
         <div className="flex items-center space-x-2">
@@ -76,21 +76,22 @@ export default function DashboardPage() {
           </Link>
         </div>
       </div>
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-5 h-auto mb-6 p-1 bg-gray-800/80 backdrop-blur-sm sticky top-[65px] z-10 shadow-sm">
+
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <TabsList className="grid w-full grid-cols-5 h-auto mb-8 p-1 bg-gray-800/80 backdrop-blur-sm sticky top-[65px] z-10 shadow-md rounded-xl">
+          <TabsTrigger
+            value="overview"
+            className="flex flex-col py-3 px-1 h-auto text-xs sm:text-sm sm:flex-row sm:items-center sm:gap-2 data-[state=active]:bg-gray-900 dark:data-[state=active]:bg-gray-800 data-[state=active]:shadow-sm data-[state=active]:text-orange-500 rounded-md transition-all"
+          >
+            <BarChart3 className="h-4 w-4 mx-auto sm:mx-0" />
+            <span className="mt-1 sm:mt-0">Overview</span>
+          </TabsTrigger>
           <TabsTrigger
             value="enhanced-meal-plan"
             className="flex flex-col py-3 px-1 h-auto text-xs sm:text-sm sm:flex-row sm:items-center sm:gap-2 data-[state=active]:bg-gray-900 dark:data-[state=active]:bg-gray-800 data-[state=active]:shadow-sm data-[state=active]:text-orange-500 rounded-md transition-all"
           >
             <Sparkles className="h-4 w-4 mx-auto sm:mx-0" />
             <span className="mt-1 sm:mt-0">AI Meal Plan</span>
-          </TabsTrigger>
-          <TabsTrigger
-            value="history"
-            className="flex flex-col py-3 px-1 h-auto text-xs sm:text-sm sm:flex-row sm:items-center sm:gap-2 data-[state=active]:bg-gray-900 dark:data-[state=active]:bg-gray-800 data-[state=active]:shadow-sm data-[state=active]:text-orange-500 rounded-md transition-all"
-          >
-            <History className="h-4 w-4 mx-auto sm:mx-0" />
-            <span className="mt-1 sm:mt-0">History</span>
           </TabsTrigger>
           <TabsTrigger
             value="calorie-tracker"
@@ -100,11 +101,11 @@ export default function DashboardPage() {
             <span className="mt-1 sm:mt-0">Calorie Tracker</span>
           </TabsTrigger>
           <TabsTrigger
-            value="chatbot"
+            value="history"
             className="flex flex-col py-3 px-1 h-auto text-xs sm:text-sm sm:flex-row sm:items-center sm:gap-2 data-[state=active]:bg-gray-900 dark:data-[state=active]:bg-gray-800 data-[state=active]:shadow-sm data-[state=active]:text-orange-500 rounded-md transition-all"
           >
-            <Sparkles className="h-4 w-4 mx-auto sm:mx-0" />
-            <span className="mt-1 sm:mt-0">AI Assistant</span>
+            <History className="h-4 w-4 mx-auto sm:mx-0" />
+            <span className="mt-1 sm:mt-0">History</span>
           </TabsTrigger>
           <TabsTrigger
             value="profile"
@@ -115,21 +116,56 @@ export default function DashboardPage() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            <Card className="card-gradient">
-              <CardHeader className="card-header-gradient">
-                <CardTitle>BMI Calculator</CardTitle>
-                <CardDescription className="text-black">Calculate your Body Mass Index</CardDescription>
+        <TabsContent value="overview" className="space-y-6">
+          {/* Hero Section */}
+          <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-gray-900 via-gray-800 to-black p-8 shadow-lg border border-gray-800">
+            <div className="absolute inset-0 bg-[url('/placeholder.svg?height=400&width=800')] opacity-10 bg-cover bg-center"></div>
+            <div className="relative z-10">
+              <h1 className="text-3xl font-bold mb-2">Welcome back, {user?.displayName || "User"}</h1>
+              <p className="text-gray-300 mb-6 max-w-2xl">
+                Track your nutrition, generate personalized meal plans, and achieve your health goals with CalorieX.
+              </p>
+              <div className="flex flex-wrap gap-3">
+                <Button onClick={() => setActiveTab("calorie-tracker")} className="button-orange">
+                  <Utensils className="mr-2 h-4 w-4" />
+                  Track Calories
+                </Button>
+                <Button onClick={() => setActiveTab("enhanced-meal-plan")} className="bg-gray-700 hover:bg-gray-600">
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  Generate Meal Plan
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* Main Features Grid */}
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            <Card className="card-gradient overflow-hidden border-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
+              <div className="h-2 bg-gradient-to-r from-orange-500 to-orange-600"></div>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <div className="mr-3 p-2 rounded-full bg-orange-500/10">
+                    <BarChart3 className="h-5 w-5 text-orange-500" />
+                  </div>
+                  BMI Calculator
+                </CardTitle>
+                <CardDescription>Calculate your Body Mass Index</CardDescription>
               </CardHeader>
               <CardContent className="p-6">
                 <BMICalculator />
               </CardContent>
             </Card>
-            <Card className="card-gradient">
-              <CardHeader className="card-header-gradient">
-                <CardTitle>Calorie Tracker</CardTitle>
-                <CardDescription className="text-black">Track your daily nutrition</CardDescription>
+
+            <Card className="card-gradient overflow-hidden border-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
+              <div className="h-2 bg-gradient-to-r from-orange-500 to-orange-600"></div>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <div className="mr-3 p-2 rounded-full bg-orange-500/10">
+                    <Utensils className="h-5 w-5 text-orange-500" />
+                  </div>
+                  Calorie Tracker
+                </CardTitle>
+                <CardDescription>Track your daily nutrition</CardDescription>
               </CardHeader>
               <CardContent className="p-6">
                 <div className="text-center space-y-4">
@@ -140,16 +176,23 @@ export default function DashboardPage() {
                   <p className="text-muted-foreground">
                     Log your meals, track macros, and monitor your nutrition goals
                   </p>
-                  <Link href="/calorie-tracker">
-                    <Button className="button-orange w-full">Open Calorie Tracker</Button>
-                  </Link>
+                  <Button onClick={() => setActiveTab("calorie-tracker")} className="button-orange w-full">
+                    Open Calorie Tracker
+                  </Button>
                 </div>
               </CardContent>
             </Card>
-            <Card className="card-gradient">
-              <CardHeader className="card-header-gradient">
-                <CardTitle>AI Meal Plan Generator</CardTitle>
-                <CardDescription className="text-black">Create personalized meal plans</CardDescription>
+
+            <Card className="card-gradient overflow-hidden border-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
+              <div className="h-2 bg-gradient-to-r from-orange-500 to-orange-600"></div>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <div className="mr-3 p-2 rounded-full bg-orange-500/10">
+                    <Sparkles className="h-5 w-5 text-orange-500" />
+                  </div>
+                  AI Meal Plan Generator
+                </CardTitle>
+                <CardDescription>Create personalized meal plans</CardDescription>
               </CardHeader>
               <CardContent className="p-6">
                 <div className="text-center space-y-4">
@@ -165,16 +208,24 @@ export default function DashboardPage() {
               </CardContent>
             </Card>
           </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <Card className="card-gradient">
-              <CardHeader className="card-header-gradient">
-                <CardTitle>Meal Plan History</CardTitle>
-                <CardDescription className="text-black">View your previous meal plans</CardDescription>
+
+          {/* Secondary Features */}
+          <div className="grid gap-6 md:grid-cols-2">
+            <Card className="card-gradient overflow-hidden border-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
+              <div className="h-2 bg-gradient-to-r from-orange-500 to-orange-600"></div>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <div className="mr-3 p-2 rounded-full bg-orange-500/10">
+                    <History className="h-5 w-5 text-orange-500" />
+                  </div>
+                  Meal Plan History
+                </CardTitle>
+                <CardDescription>View your previous meal plans</CardDescription>
               </CardHeader>
               <CardContent className="p-6">
                 <div className="text-center space-y-4">
                   <div className="flex justify-center">
-                    <History className="h-12 w-12 text-orange-500" />
+                    <FileText className="h-12 w-12 text-orange-500" />
                   </div>
                   <h3 className="text-xl font-medium">Your Meal Plan History</h3>
                   <p className="text-muted-foreground">Access and review your previously generated meal plans</p>
@@ -184,10 +235,17 @@ export default function DashboardPage() {
                 </div>
               </CardContent>
             </Card>
-            <Card className="card-gradient">
-              <CardHeader className="card-header-gradient">
-                <CardTitle>Personal Dietitian</CardTitle>
-                <CardDescription className="text-black">Get expert nutrition advice</CardDescription>
+
+            <Card className="card-gradient overflow-hidden border-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
+              <div className="h-2 bg-gradient-to-r from-orange-500 to-orange-600"></div>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <div className="mr-3 p-2 rounded-full bg-orange-500/10">
+                    <User2 className="h-5 w-5 text-orange-500" />
+                  </div>
+                  Personal Dietitian
+                </CardTitle>
+                <CardDescription>Get expert nutrition advice</CardDescription>
               </CardHeader>
               <CardContent className="p-6">
                 <DietitianCard />
@@ -196,11 +254,17 @@ export default function DashboardPage() {
           </div>
         </TabsContent>
 
-        <TabsContent value="enhanced-meal-plan" className="space-y-4">
-          <Card className="card-gradient">
-            <CardHeader className="card-header-gradient">
-              <CardTitle>AI Meal Plan Generator</CardTitle>
-              <CardDescription className="text-black">Create a personalized meal plan with AI</CardDescription>
+        <TabsContent value="enhanced-meal-plan" className="space-y-6">
+          <Card className="card-gradient overflow-hidden border-gray-800 shadow-lg">
+            <div className="h-2 bg-gradient-to-r from-orange-500 to-orange-600"></div>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <div className="mr-3 p-2 rounded-full bg-orange-500/10">
+                  <Sparkles className="h-5 w-5 text-orange-500" />
+                </div>
+                AI Meal Plan Generator
+              </CardTitle>
+              <CardDescription>Create a personalized meal plan with AI</CardDescription>
             </CardHeader>
             <CardContent className="p-6">
               <EnhancedMealPlanGenerator userData={user} />
@@ -208,19 +272,61 @@ export default function DashboardPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="history" className="space-y-4">
-          <MealPlanHistory />
+        <TabsContent value="history" className="space-y-6">
+          <Card className="card-gradient overflow-hidden border-gray-800 shadow-lg">
+            <div className="h-2 bg-gradient-to-r from-orange-500 to-orange-600"></div>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <div className="mr-3 p-2 rounded-full bg-orange-500/10">
+                  <History className="h-5 w-5 text-orange-500" />
+                </div>
+                Meal Plan History
+              </CardTitle>
+              <CardDescription>View your previous meal plans</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <MealPlanHistory />
+            </CardContent>
+          </Card>
         </TabsContent>
 
-        <TabsContent value="profile" className="space-y-4">
-          <UserProfile />
+        <TabsContent value="profile" className="space-y-6">
+          <Card className="card-gradient overflow-hidden border-gray-800 shadow-lg">
+            <div className="h-2 bg-gradient-to-r from-orange-500 to-orange-600"></div>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <div className="mr-3 p-2 rounded-full bg-orange-500/10">
+                  <User2 className="h-5 w-5 text-orange-500" />
+                </div>
+                Your Profile
+              </CardTitle>
+              <CardDescription>Manage your account settings</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <UserProfile />
+            </CardContent>
+          </Card>
         </TabsContent>
 
-        <TabsContent value="chatbot" className="space-y-4">
-          <Chatbot />
+        <TabsContent value="chatbot" className="space-y-6">
+          <Card className="card-gradient overflow-hidden border-gray-800 shadow-lg">
+            <div className="h-2 bg-gradient-to-r from-orange-500 to-orange-600"></div>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <div className="mr-3 p-2 rounded-full bg-orange-500/10">
+                  <MessageSquare className="h-5 w-5 text-orange-500" />
+                </div>
+                AI Nutrition Assistant
+              </CardTitle>
+              <CardDescription>Get answers to your nutrition questions</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Chatbot />
+            </CardContent>
+          </Card>
         </TabsContent>
 
-        <TabsContent value="calorie-tracker" className="space-y-4">
+        <TabsContent value="calorie-tracker" className="space-y-6">
           <CalorieTracker />
         </TabsContent>
       </Tabs>

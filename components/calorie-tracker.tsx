@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useAuth } from "@/lib/use-auth"
 import { searchAllFoodSources } from "@/lib/firestore-utils"
 import { calculateIFCTNutritionForPortion } from "@/lib/ifct-api"
@@ -82,8 +82,8 @@ export function CalorieTracker() {
   const [diaryEntries, setDiaryEntries] = useState<DiaryEntry[]>([])
   const [newNote, setNewNote] = useState("")
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
-  const [isUserLoading, setIsUserLoading] = useState(true)
-  const [hasUserLoadedOnce, setHasUserLoadedOnce] = useState(false)
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const [hasUser, setHasUser] = useState(false)
 
   // Calculate daily totals
   const dailyTotals = diaryEntries.reduce(
@@ -117,15 +117,14 @@ export function CalorieTracker() {
 
   // Load user's daily goals and diary entries from Firestore
   useEffect(() => {
-    setIsUserLoading(true)
+    setHasUser(!!user?.uid)
+  }, [user?.uid])
+
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined
 
     const loadUserData = async () => {
-      if (!user?.uid) {
-        if (hasUserLoadedOnce) {
-          setIsUserLoading(false)
-        }
-        return
-      }
+      if (!user?.uid) return
 
       try {
         // Load daily goals
@@ -158,14 +157,19 @@ export function CalorieTracker() {
       } catch (error) {
         console.error("Error loading user data:", error)
         // Don't set an error state here, just use the default values
-      } finally {
-        setIsUserLoading(false)
-        setHasUserLoadedOnce(true)
       }
     }
 
-    loadUserData()
-  }, [user?.uid, hasUserLoadedOnce])
+    if (hasUser) {
+      loadUserData()
+    }
+
+    return () => {
+      if (unsubscribe) {
+        unsubscribe()
+      }
+    }
+  }, [hasUser, dailyGoals, user?.uid])
 
   // If there's an error loading user data, show an error message with a retry button
   if (error) {
@@ -186,7 +190,7 @@ export function CalorieTracker() {
   }
 
   // If still loading, show a loading indicator
-  if (loading || isUserLoading) {
+  if (loading) {
     return (
       <Card className="card-gradient">
         <CardHeader>
@@ -229,66 +233,48 @@ export function CalorieTracker() {
     }
   }, [diaryEntries, user?.uid])
 
-  // Improved search function that responds immediately to user input
-  const debouncedSearch = useCallback(
-    (() => {
-      let timeout: NodeJS.Timeout | null = null
-
-      return (term: string) => {
-        if (timeout) {
-          clearTimeout(timeout)
-        }
-
-        // If the search term is empty, clear results
-        if (!term.trim()) {
-          setSearchResults([])
-          setIsSearching(false)
-          return
-        }
-
-        // Set searching state immediately
-        setIsSearching(true)
-
-        // Use a very short timeout for the first few characters to make it feel instant
-        const debounceTime = term.length <= 2 ? 50 : 200
-
-        timeout = setTimeout(async () => {
-          try {
-            // First try to use the imported function
-            let results = []
-            try {
-              results = await searchAllFoodSources(term.trim(), 20)
-            } catch (searchError) {
-              console.error("Error with searchAllFoodSources:", searchError)
-              // Fallback to a basic search implementation
-              results = await fallbackFoodSearch(term.trim())
-            }
-
-            setSearchResults(results)
-          } catch (error) {
-            console.error("Error searching for foods:", error)
-            setSearchResults([])
-          } finally {
-            setIsSearching(false)
-          }
-        }, debounceTime)
-      }
-    })(),
-    [],
-  )
-
-  // Handle search input change
+  // Handle search input change with immediate results
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const term = e.target.value
     setSearchTerm(term)
 
+    // Clear any existing timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current)
+    }
+
     // Always show search results when typing, even with a single character
     if (term.trim().length > 0) {
       setShowSearchResults(true)
-      debouncedSearch(term)
+      setIsSearching(true)
+
+      // Use a very short timeout for the first few characters to make it feel instant
+      const debounceTime = term.length <= 2 ? 50 : 200
+
+      searchTimeoutRef.current = setTimeout(async () => {
+        try {
+          // First try to use the imported function
+          let results = []
+          try {
+            results = await searchAllFoodSources(term.trim(), 20)
+          } catch (searchError) {
+            console.error("Error with searchAllFoodSources:", searchError)
+            // Fallback to a basic search implementation
+            results = await fallbackFoodSearch(term.trim())
+          }
+
+          setSearchResults(results)
+        } catch (error) {
+          console.error("Error searching for foods:", error)
+          setSearchResults([])
+        } finally {
+          setIsSearching(false)
+        }
+      }, debounceTime)
     } else {
       setShowSearchResults(false)
       setSearchResults([])
+      setIsSearching(false)
     }
   }
 
@@ -498,7 +484,7 @@ export function CalorieTracker() {
               <span>Daily Summary</span>
               <span className={`text-xl ${remaining.calories < 0 ? "text-red-500" : "text-green-500"}`}>
                 {remaining.calories < 0 ? "-" : ""}
-                {Math.abs(remaining.calories)} kcal remaining
+                {Math.abs(Math.round(remaining.calories))} kcal remaining
               </span>
             </CardTitle>
           </CardHeader>

@@ -13,11 +13,11 @@ import {
   User,
   FileText,
   MessageSquare,
-  BarChart3,
   HelpCircle,
   ChevronDown,
   ChevronUp,
   Utensils,
+  Sparkles,
 } from "lucide-react"
 
 interface NavItem {
@@ -38,6 +38,11 @@ export function DashboardNav() {
       icon: <LayoutDashboard className="h-5 w-5" />,
     },
     {
+      title: "AI Meal Plan",
+      href: "/dashboard?tab=enhanced-meal-plan",
+      icon: <Sparkles className="h-5 w-5" />,
+    },
+    {
       title: "Meal Plans",
       href: "/dashboard?tab=meal-plans",
       icon: <FileText className="h-5 w-5" />,
@@ -46,11 +51,6 @@ export function DashboardNav() {
       title: "Calorie Tracker",
       href: "/calorie-tracker",
       icon: <Utensils className="h-5 w-5" />,
-    },
-    {
-      title: "Daily Meal Diary",
-      href: "/daily-meal-tracker",
-      icon: <BarChart3 className="h-5 w-5" />,
     },
     {
       title: "Profile",
@@ -80,7 +80,12 @@ export function DashboardNav() {
   return (
     <nav className="grid items-start gap-2">
       {mainNavItems.map((item, index) => {
-        const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`)
+        const isActive =
+          pathname === item.href ||
+          pathname.startsWith(`${item.href}/`) ||
+          (item.href.includes("?tab=") &&
+            pathname.includes(item.href.split("?")[0]) &&
+            pathname.includes(item.href.split("?tab=")[1]))
         return (
           <Link
             key={index}
