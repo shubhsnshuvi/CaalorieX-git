@@ -17,7 +17,7 @@ import { History, User2, Sparkles, Utensils, RefreshCw, BarChart3, FileText, Mes
 import Link from "next/link"
 
 export default function DashboardPage() {
-  const { user, loading, error, refreshUserData } = useAuth()
+  const { user, userData, loading, error, refreshUserData } = useAuth()
   const searchParams = useSearchParams()
   const tabParam = searchParams?.get("tab")
   const [activeTab, setActiveTab] = useState("overview")
@@ -121,7 +121,7 @@ export default function DashboardPage() {
           <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-gray-900 via-gray-800 to-black p-8 shadow-lg border border-gray-800">
             <div className="absolute inset-0 bg-[url('/placeholder.svg?height=400&width=800')] opacity-10 bg-cover bg-center"></div>
             <div className="relative z-10">
-              <h1 className="text-3xl font-bold mb-2">Welcome back, {user?.displayName || "User"}</h1>
+              <h1 className="text-3xl font-bold mb-2">Welcome back, {userData?.fullName || "User"}</h1>
               <p className="text-gray-300 mb-6 max-w-2xl">
                 Track your nutrition, generate personalized meal plans, and achieve your health goals with CalorieX.
               </p>
@@ -152,7 +152,13 @@ export default function DashboardPage() {
                 <CardDescription>Calculate your Body Mass Index</CardDescription>
               </CardHeader>
               <CardContent className="p-6">
-                <BMICalculator />
+                {userData && (
+                  <BMICalculator
+                    weight={userData.weight || 70}
+                    height={userData.height || 170}
+                    gender={userData.gender || "male"}
+                  />
+                )}
               </CardContent>
             </Card>
 
@@ -267,7 +273,7 @@ export default function DashboardPage() {
               <CardDescription>Create a personalized meal plan with AI</CardDescription>
             </CardHeader>
             <CardContent className="p-6">
-              <EnhancedMealPlanGenerator userData={user} />
+              <EnhancedMealPlanGenerator userData={userData} />
             </CardContent>
           </Card>
         </TabsContent>

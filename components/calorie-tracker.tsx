@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { useAuth } from "@/lib/use-auth"
 import { searchAllFoodSources } from "@/lib/firestore-utils"
 import { calculateIFCTNutritionForPortion } from "@/lib/ifct-api"
@@ -82,8 +82,8 @@ export function CalorieTracker() {
   const [diaryEntries, setDiaryEntries] = useState<DiaryEntry[]>([])
   const [newNote, setNewNote] = useState("")
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
+  const [isUserLoading, setIsUserLoading] = useState(true)
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const [hasUser, setHasUser] = useState(false)
 
   // Calculate daily totals
   const dailyTotals = diaryEntries.reduce(
@@ -115,16 +115,69 @@ export function CalorieTracker() {
     fat: Math.min(100, (dailyTotals.fat / dailyGoals.fat) * 100),
   }
 
+  // Improved search function that responds immediately to user input
+  const searchFoods = useCallback(async (term: string) => {
+    if (!term.trim()) {
+      setSearchResults([])
+      setIsSearching(false)
+      return
+    }
+
+    setIsSearching(true)
+
+    try {
+      // Try to use the imported function
+      let results = []
+      try {
+        results = await searchAllFoodSources(term.trim(), 20)
+      } catch (searchError) {
+        console.error("Error with searchAllFoodSources:", searchError)
+        // Fallback to a basic search implementation
+        results = await fallbackFoodSearch(term.trim())
+      }
+
+      setSearchResults(results)
+    } catch (error) {
+      console.error("Error searching for foods:", error)
+      setSearchResults([])
+    } finally {
+      setIsSearching(false)
+    }
+  }, [])
+
+  // Handle search input change with immediate results
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const term = e.target.value
+    setSearchTerm(term)
+
+    // Clear any existing timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current)
+    }
+
+    // Always show search results when typing, even with a single character
+    if (term.trim().length > 0) {
+      setShowSearchResults(true)
+
+      // Use a very short timeout for the first few characters to make it feel instant
+      const debounceTime = term.length <= 2 ? 50 : 200
+
+      searchTimeoutRef.current = setTimeout(() => {
+        searchFoods(term)
+      }, debounceTime)
+    } else {
+      setShowSearchResults(false)
+      setSearchResults([])
+    }
+  }
+
   // Load user's daily goals and diary entries from Firestore
   useEffect(() => {
-    setHasUser(!!user?.uid)
-  }, [user?.uid])
-
-  useEffect(() => {
-    let unsubscribe: (() => void) | undefined
-
     const loadUserData = async () => {
-      if (!user?.uid) return
+      if (!user?.uid) {
+        setIsUserLoading(false)
+        return
+      }
 
       try {
         // Load daily goals
@@ -157,51 +210,13 @@ export function CalorieTracker() {
       } catch (error) {
         console.error("Error loading user data:", error)
         // Don't set an error state here, just use the default values
+      } finally {
+        setIsUserLoading(false)
       }
     }
 
-    if (hasUser) {
-      loadUserData()
-    }
-
-    return () => {
-      if (unsubscribe) {
-        unsubscribe()
-      }
-    }
-  }, [hasUser, dailyGoals, user?.uid])
-
-  // If there's an error loading user data, show an error message with a retry button
-  if (error) {
-    return (
-      <Card className="card-gradient">
-        <CardHeader>
-          <CardTitle className="text-red-500">Error</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p>{error}</p>
-          <Button onClick={refreshUserData} className="button-orange w-full">
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Retry
-          </Button>
-        </CardContent>
-      </Card>
-    )
-  }
-
-  // If still loading, show a loading indicator
-  if (loading) {
-    return (
-      <Card className="card-gradient">
-        <CardHeader>
-          <CardTitle>Loading</CardTitle>
-        </CardHeader>
-        <CardContent className="flex justify-center py-8">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500"></div>
-        </CardContent>
-      </Card>
-    )
-  }
+    loadUserData()
+  }, [user?.uid, dailyGoals])
 
   // Save diary entries to Firestore whenever they change
   useEffect(() => {
@@ -232,51 +247,6 @@ export function CalorieTracker() {
       return () => clearTimeout(timeoutId)
     }
   }, [diaryEntries, user?.uid])
-
-  // Handle search input change with immediate results
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const term = e.target.value
-    setSearchTerm(term)
-
-    // Clear any existing timeout
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current)
-    }
-
-    // Always show search results when typing, even with a single character
-    if (term.trim().length > 0) {
-      setShowSearchResults(true)
-      setIsSearching(true)
-
-      // Use a very short timeout for the first few characters to make it feel instant
-      const debounceTime = term.length <= 2 ? 50 : 200
-
-      searchTimeoutRef.current = setTimeout(async () => {
-        try {
-          // First try to use the imported function
-          let results = []
-          try {
-            results = await searchAllFoodSources(term.trim(), 20)
-          } catch (searchError) {
-            console.error("Error with searchAllFoodSources:", searchError)
-            // Fallback to a basic search implementation
-            results = await fallbackFoodSearch(term.trim())
-          }
-
-          setSearchResults(results)
-        } catch (error) {
-          console.error("Error searching for foods:", error)
-          setSearchResults([])
-        } finally {
-          setIsSearching(false)
-        }
-      }, debounceTime)
-    } else {
-      setShowSearchResults(false)
-      setSearchResults([])
-      setIsSearching(false)
-    }
-  }
 
   // Fallback search function if the imported one fails
   const fallbackFoodSearch = async (term: string) => {
@@ -351,7 +321,7 @@ export function CalorieTracker() {
     ]
 
     // Filter foods that start with the search term (case insensitive)
-    return foods.filter((food) => food.name.toLowerCase().startsWith(term.toLowerCase()))
+    return foods.filter((food) => food.name.toLowerCase().includes(term.toLowerCase()))
   }
 
   const handleFoodSelect = (food: any) => {
@@ -414,6 +384,7 @@ export function CalorieTracker() {
       timestamp: Date.now(),
     }
 
+    // Add the new food item to the diary entries
     setDiaryEntries((prev) => [...prev, newFood].sort((a, b) => a.timestamp - b.timestamp))
 
     // Reset selection
@@ -432,6 +403,7 @@ export function CalorieTracker() {
       timestamp: Date.now(),
     }
 
+    // Add the new note to the diary entries
     setDiaryEntries((prev) => [...prev, note].sort((a, b) => a.timestamp - b.timestamp))
     setNewNote("")
   }
@@ -472,6 +444,38 @@ export function CalorieTracker() {
     } catch (error) {
       console.error("Error updating daily goals:", error)
     }
+  }
+
+  // If there's an error loading user data, show an error message with a retry button
+  if (error) {
+    return (
+      <Card className="card-gradient">
+        <CardHeader>
+          <CardTitle className="text-red-500">Error</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p>{error}</p>
+          <Button onClick={refreshUserData} className="button-orange w-full">
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Retry
+          </Button>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // If still loading, show a loading indicator
+  if (loading || isUserLoading) {
+    return (
+      <Card className="card-gradient">
+        <CardHeader>
+          <CardTitle>Loading</CardTitle>
+        </CardHeader>
+        <CardContent className="flex justify-center py-8">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500"></div>
+        </CardContent>
+      </Card>
+    )
   }
 
   return (

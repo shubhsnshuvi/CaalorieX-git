@@ -1,6 +1,9 @@
+"use client"
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
+import { useEffect, useState } from "react"
 
 interface BMICalculatorProps {
   weight: number
@@ -9,14 +12,29 @@ interface BMICalculatorProps {
 }
 
 export function BMICalculator({ weight, height, gender }: BMICalculatorProps) {
-  // Calculate BMI with gender adjustment
-  // Standard BMI calculation
-  const standardBmi = weight && height ? weight / Math.pow(height / 100, 2) : null
+  const [bmi, setBmi] = useState<number | null>(null)
+  const [bmiInfo, setBmiInfo] = useState<any | null>(null)
+  const [progressPercentage, setProgressPercentage] = useState(0)
 
-  // Gender-adjusted BMI (slight adjustment based on gender)
-  // For females, BMI tends to be slightly higher due to higher body fat percentage
-  // For males, we'll use the standard BMI
-  const bmi = standardBmi ? (gender === "female" ? standardBmi * 0.95 : standardBmi) : null
+  // Calculate BMI whenever weight, height, or gender changes
+  useEffect(() => {
+    // Calculate BMI with gender adjustment
+    // Standard BMI calculation
+    const standardBmi = weight && height ? weight / Math.pow(height / 100, 2) : null
+
+    // Gender-adjusted BMI (slight adjustment based on gender)
+    // For females, BMI tends to be slightly higher due to higher body fat percentage
+    // For males, we'll use the standard BMI
+    const calculatedBmi = standardBmi ? (gender === "female" ? standardBmi * 0.95 : standardBmi) : null
+
+    setBmi(calculatedBmi)
+
+    // Calculate progress percentage for the BMI scale (from 15 to 35)
+    if (calculatedBmi) {
+      setProgressPercentage(Math.min(Math.max(((calculatedBmi - 15) / 20) * 100, 0), 100))
+      setBmiInfo(getBmiCategory(calculatedBmi, gender))
+    }
+  }, [weight, height, gender])
 
   // Determine BMI category and color based on gender
   const getBmiCategory = (bmi: number, gender: string) => {
@@ -106,12 +124,6 @@ export function BMICalculator({ weight, height, gender }: BMICalculatorProps) {
       }
     }
   }
-
-  // Get BMI info if BMI is available
-  const bmiInfo = bmi ? getBmiCategory(bmi, gender) : null
-
-  // Calculate progress percentage for the BMI scale (from 15 to 35)
-  const progressPercentage = bmi ? Math.min(Math.max(((bmi - 15) / 20) * 100, 0), 100) : 0
 
   if (!bmi) {
     return (
