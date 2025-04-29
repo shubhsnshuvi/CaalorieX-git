@@ -94,4 +94,29 @@
   .premium-icon {
     @apply text-orange-500;
   }
+
+  /* Improved text contrast */
+  .text-muted-foreground {
+    @apply text-gray-400;
+  }
+
+  /* Ensure all text in cards is visible */
+  .card-content-text {
+    @apply text-white;
+  }
+
+  /* Improved input contrast */
+  .input-dark::placeholder {
+    @apply text-gray-400;
+  }
+
+  /* Improved select contrast */
+  .select-dark .select-value {
+    @apply text-white;
+  }
+
+  /* Improved button text contrast */
+  .button-outline {
+    @apply text-white;
+  }
 }

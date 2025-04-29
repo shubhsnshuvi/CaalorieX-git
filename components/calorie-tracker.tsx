@@ -2,19 +2,16 @@
 
 import type React from "react"
 
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useAuth } from "@/lib/use-auth"
-import { searchAllFoodSources } from "@/lib/firestore-utils"
-import { calculateIFCTNutritionForPortion } from "@/lib/ifct-api"
-import { calculateNutritionForPortion } from "@/lib/usda-api"
-import { PlusCircle, Trash2, X, RefreshCw, Edit, Save, FileText } from "lucide-react"
+import { PlusCircle, Trash2, X, RefreshCw, Edit, Save, FileText, Calendar } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore"
+import { doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs, limit } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
@@ -84,6 +81,7 @@ export function CalorieTracker() {
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
   const [isUserLoading, setIsUserLoading] = useState(true)
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split("T")[0])
 
   // Calculate daily totals
   const dailyTotals = diaryEntries.reduce(
@@ -115,35 +113,130 @@ export function CalorieTracker() {
     fat: Math.min(100, (dailyTotals.fat / dailyGoals.fat) * 100),
   }
 
-  // Improved search function that responds immediately to user input
-  const searchFoods = useCallback(async (term: string) => {
-    if (!term.trim()) {
-      setSearchResults([])
-      setIsSearching(false)
-      return
-    }
-
-    setIsSearching(true)
-
+  // Direct search function for IFCT foods
+  const searchIFCTFoods = async (term: string) => {
     try {
-      // Try to use the imported function
-      let results = []
-      try {
-        results = await searchAllFoodSources(term.trim(), 20)
-      } catch (searchError) {
-        console.error("Error with searchAllFoodSources:", searchError)
-        // Fallback to a basic search implementation
-        results = await fallbackFoodSearch(term.trim())
+      const foodsRef = collection(db, "ifct_foods")
+      const results: any[] = []
+
+      // First try exact keyword match
+      let q = query(foodsRef, where("keywords", "array-contains", term.toLowerCase()), limit(10))
+      let querySnapshot = await getDocs(q)
+
+      if (querySnapshot.empty && term.length > 0) {
+        // If no results, try partial match with a limit
+        q = query(foodsRef, limit(50))
+        querySnapshot = await getDocs(q)
+
+        querySnapshot.forEach((doc) => {
+          const data = doc.data()
+          const name = (data.name || "").toLowerCase()
+
+          if (name.includes(term.toLowerCase())) {
+            results.push({
+              id: doc.id,
+              name: data.name || "Unknown Food",
+              source: "ifct",
+              nutrients: {
+                calories: data.nutrients?.calories || 0,
+                protein: data.nutrients?.protein || 0,
+                fat: data.nutrients?.fat || 0,
+                carbohydrates: data.nutrients?.carbohydrates || 0,
+              },
+              category: data.category || "General",
+            })
+          }
+        })
+      } else {
+        querySnapshot.forEach((doc) => {
+          const data = doc.data()
+          results.push({
+            id: doc.id,
+            name: data.name || "Unknown Food",
+            source: "ifct",
+            nutrients: {
+              calories: data.nutrients?.calories || 0,
+              protein: data.nutrients?.protein || 0,
+              fat: data.nutrients?.fat || 0,
+              carbohydrates: data.nutrients?.carbohydrates || 0,
+            },
+            category: data.category || "General",
+          })
+        })
       }
 
-      setSearchResults(results)
+      return results
     } catch (error) {
-      console.error("Error searching for foods:", error)
-      setSearchResults([])
-    } finally {
-      setIsSearching(false)
+      console.error("Error searching IFCT foods:", error)
+      return []
     }
-  }, [])
+  }
+
+  // Fallback search function with default foods
+  const getFallbackFoods = () => {
+    return [
+      {
+        id: "default-1",
+        name: "Banana",
+        source: "default",
+        nutrients: {
+          calories: 105,
+          protein: 1.3,
+          fat: 0.4,
+          carbohydrates: 27,
+        },
+        category: "Fruits",
+      },
+      {
+        id: "default-2",
+        name: "Apple",
+        source: "default",
+        nutrients: {
+          calories: 95,
+          protein: 0.5,
+          fat: 0.3,
+          carbohydrates: 25,
+        },
+        category: "Fruits",
+      },
+      {
+        id: "default-3",
+        name: "Rice (cooked)",
+        source: "default",
+        nutrients: {
+          calories: 130,
+          protein: 2.7,
+          fat: 0.3,
+          carbohydrates: 28,
+        },
+        category: "Grains",
+      },
+      {
+        id: "default-4",
+        name: "Bread, white",
+        source: "default",
+        nutrients: {
+          calories: 75,
+          protein: 2.6,
+          fat: 1.0,
+          carbohydrates: 14,
+        },
+        category: "Grains",
+      },
+      {
+        id: "default-5",
+        name: "Chicken Breast (cooked)",
+        source: "default",
+        nutrients: {
+          calories: 165,
+          protein: 31,
+          fat: 3.6,
+          carbohydrates: 0,
+        },
+        category: "Protein",
+      },
+    ]
+  }
 
   // Handle search input change with immediate results
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -155,19 +248,43 @@ export function CalorieTracker() {
       clearTimeout(searchTimeoutRef.current)
     }
 
-    // Always show search results when typing, even with a single character
+    // Show search results immediately when typing
     if (term.trim().length > 0) {
       setShowSearchResults(true)
+      setIsSearching(true)
 
-      // Use a very short timeout for the first few characters to make it feel instant
-      const debounceTime = term.length <= 2 ? 50 : 200
+      // Use a very short timeout for immediate response
+      searchTimeoutRef.current = setTimeout(async () => {
+        try {
+          // First try to search IFCT foods
+          const ifctResults = await searchIFCTFoods(term)
 
-      searchTimeoutRef.current = setTimeout(() => {
-        searchFoods(term)
-      }, debounceTime)
+          if (ifctResults.length > 0) {
+            setSearchResults(ifctResults)
+          } else {
+            // If no IFCT results, filter fallback foods
+            const fallbackFoods = getFallbackFoods()
+            const filteredFallbackFoods = fallbackFoods.filter((food) =>
+              food.name.toLowerCase().includes(term.toLowerCase()),
+            )
+            setSearchResults(filteredFallbackFoods)
+          }
+        } catch (error) {
+          console.error("Error searching for foods:", error)
+          // Use fallback foods if search fails
+          const fallbackFoods = getFallbackFoods()
+          const filteredFallbackFoods = fallbackFoods.filter((food) =>
+            food.name.toLowerCase().includes(term.toLowerCase()),
+          )
+          setSearchResults(filteredFallbackFoods)
+        } finally {
+          setIsSearching(false)
+        }
+      }, 100) // Very short timeout for immediate response
     } else {
       setShowSearchResults(false)
       setSearchResults([])
+      setIsSearching(false)
     }
   }
 
@@ -191,32 +308,45 @@ export function CalorieTracker() {
           await setDoc(goalsDocRef, dailyGoals)
         }
 
-        // Load today's diary entries
-        const today = new Date().toISOString().split("T")[0]
-
-        // Create the parent documents if they don't exist
-        const nutritionDocRef = doc(db, "users", user.uid, "nutrition", "dailyLogs")
-        await setDoc(nutritionDocRef, { lastUpdated: new Date() }, { merge: true })
-
-        const diaryDocRef = doc(db, "users", user.uid, "nutrition", "dailyLogs", "logs", today)
-        const diaryDoc = await getDoc(diaryDocRef)
-
-        if (diaryDoc.exists()) {
-          const data = diaryDoc.data()
-          if (data.entries) {
-            setDiaryEntries(data.entries)
-          }
-        }
+        // Load diary entries for the selected date
+        await loadDiaryEntriesForDate(selectedDate)
       } catch (error) {
         console.error("Error loading user data:", error)
-        // Don't set an error state here, just use the default values
       } finally {
         setIsUserLoading(false)
       }
     }
 
     loadUserData()
-  }, [user?.uid, dailyGoals])
+  }, [user?.uid, selectedDate])
+
+  // Load diary entries for a specific date
+  const loadDiaryEntriesForDate = async (date: string) => {
+    if (!user?.uid) return
+
+    try {
+      // Create the parent documents if they don't exist
+      const nutritionDocRef = doc(db, "users", user.uid, "nutrition", "dailyLogs")
+      await setDoc(nutritionDocRef, { lastUpdated: new Date() }, { merge: true })
+
+      const diaryDocRef = doc(db, "users", user.uid, "nutrition", "dailyLogs", "logs", date)
+      const diaryDoc = await getDoc(diaryDocRef)
+
+      if (diaryDoc.exists()) {
+        const data = diaryDoc.data()
+        if (data.entries) {
+          setDiaryEntries(data.entries)
+        } else {
+          setDiaryEntries([])
+        }
+      } else {
+        setDiaryEntries([])
+      }
+    } catch (error) {
+      console.error(`Error loading diary entries for ${date}:`, error)
+      setDiaryEntries([])
+    }
+  }
 
   // Save diary entries to Firestore whenever they change
   useEffect(() => {
@@ -224,107 +354,29 @@ export function CalorieTracker() {
       if (!user?.uid) return
 
       try {
-        const today = new Date().toISOString().split("T")[0]
-
         // Ensure parent collections/documents exist
         const nutritionDocRef = doc(db, "users", user.uid, "nutrition", "dailyLogs")
         await setDoc(nutritionDocRef, { lastUpdated: new Date() }, { merge: true })
 
-        const diaryDocRef = doc(db, "users", user.uid, "nutrition", "dailyLogs", "logs", today)
+        const diaryDocRef = doc(db, "users", user.uid, "nutrition", "dailyLogs", "logs", selectedDate)
 
         // Save the diary entries
         await setDoc(diaryDocRef, { entries: diaryEntries, updatedAt: new Date() }, { merge: true })
       } catch (error) {
         console.error("Error saving diary entries:", error)
-        // Don't show an error to the user, just log it
       }
     }
 
-    // Only save if we have entries and a user
-    if (user?.uid && diaryEntries.length > 0) {
+    // Only save if we have a user
+    if (user?.uid) {
       // Debounce the save operation to avoid too many writes
       const timeoutId = setTimeout(saveDiaryEntries, 1000)
       return () => clearTimeout(timeoutId)
     }
-  }, [diaryEntries, user?.uid])
-
-  // Fallback search function if the imported one fails
-  const fallbackFoodSearch = async (term: string) => {
-    // Basic implementation that returns some default foods
-    const foods = [
-      {
-        id: "default-1",
-        name: "Banana",
-        source: "default",
-        nutrition: {
-          calories: 105,
-          protein: 1.3,
-          carbs: 27,
-          fat: 0.4,
-        },
-      },
-      {
-        id: "default-2",
-        name: "Apple",
-        source: "default",
-        nutrition: {
-          calories: 95,
-          protein: 0.5,
-          carbs: 25,
-          fat: 0.3,
-        },
-      },
-      {
-        id: "default-3",
-        name: "Rice (cooked)",
-        source: "default",
-        nutrition: {
-          calories: 130,
-          protein: 2.7,
-          carbs: 28,
-          fat: 0.3,
-        },
-      },
-      {
-        id: "default-4",
-        name: "Bread, white",
-        source: "default",
-        nutrition: {
-          calories: 75,
-          protein: 2.6,
-          carbs: 14,
-          fat: 1.0,
-        },
-      },
-      {
-        id: "default-5",
-        name: "Butter",
-        source: "default",
-        nutrition: {
-          calories: 102,
-          protein: 0.1,
-          carbs: 0.1,
-          fat: 11.5,
-        },
-      },
-      {
-        id: "default-6",
-        name: "Broccoli",
-        source: "default",
-        nutrition: {
-          calories: 34,
-          protein: 2.8,
-          carbs: 6.6,
-          fat: 0.4,
-        },
-      },
-    ]
-
-    // Filter foods that start with the search term (case insensitive)
-    return foods.filter((food) => food.name.toLowerCase().includes(term.toLowerCase()))
-  }
+  }, [diaryEntries, user?.uid, selectedDate])
 
   const handleFoodSelect = (food: any) => {
+    console.log("Selected food:", food)
     setSelectedFood(food)
     setShowSearchResults(false)
   }
@@ -333,41 +385,14 @@ export function CalorieTracker() {
   const addFoodToDiary = () => {
     if (!selectedFood) return
 
-    // Calculate nutrition based on the food source
-    let nutrition = { calories: 0, protein: 0, carbs: 0, fat: 0 }
+    console.log("Adding food to diary:", selectedFood)
 
-    try {
-      if (selectedFood.source === "ifct") {
-        nutrition = calculateIFCTNutritionForPortion(selectedFood, servingSize.amount)
-      } else if (selectedFood.source === "usda") {
-        nutrition = calculateNutritionForPortion(selectedFood, servingSize.amount)
-      } else if (selectedFood.source === "default") {
-        // For default foods, adjust nutrition based on serving size
-        const ratio = servingSize.amount / 100
-        nutrition = {
-          calories: selectedFood.nutrition.calories * ratio,
-          protein: selectedFood.nutrition.protein * ratio,
-          carbs: selectedFood.nutrition.carbs * ratio,
-          fat: selectedFood.nutrition.fat * ratio,
-        }
-      } else {
-        // For custom foods or other sources
-        nutrition = {
-          calories: selectedFood.nutrition?.calories || selectedFood.nutrients?.calories || 0,
-          protein: selectedFood.nutrition?.protein || selectedFood.nutrients?.protein || 0,
-          carbs: selectedFood.nutrition?.carbs || selectedFood.nutrients?.carbohydrates || 0,
-          fat: selectedFood.nutrition?.fat || selectedFood.nutrients?.fat || 0,
-        }
-      }
-    } catch (error) {
-      console.error("Error calculating nutrition:", error)
-      // Use default values if calculation fails
-      nutrition = {
-        calories: 100,
-        protein: 5,
-        carbs: 15,
-        fat: 3,
-      }
+    // Calculate nutrition based on the food source and serving size
+    const nutrition = {
+      calories: calculateNutritionValue(selectedFood, "calories", servingSize.amount),
+      protein: calculateNutritionValue(selectedFood, "protein", servingSize.amount),
+      carbs: calculateNutritionValue(selectedFood, "carbohydrates", servingSize.amount),
+      fat: calculateNutritionValue(selectedFood, "fat", servingSize.amount),
     }
 
     const newFood: FoodItem = {
@@ -384,8 +409,14 @@ export function CalorieTracker() {
       timestamp: Date.now(),
     }
 
+    console.log("New food entry:", newFood)
+
     // Add the new food item to the diary entries
-    setDiaryEntries((prev) => [...prev, newFood].sort((a, b) => a.timestamp - b.timestamp))
+    setDiaryEntries((prev) => {
+      const newEntries = [...prev, newFood].sort((a, b) => a.timestamp - b.timestamp)
+      console.log("Updated diary entries:", newEntries)
+      return newEntries
+    })
 
     // Reset selection
     setSelectedFood(null)
@@ -393,9 +424,35 @@ export function CalorieTracker() {
     setSearchTerm("")
   }
 
+  // Calculate nutrition value based on serving size
+  const calculateNutritionValue = (food: any, nutrient: string, amount: number) => {
+    // Default per 100g
+    const baseAmount = 100
+    const ratio = amount / baseAmount
+
+    // Try to get the nutrient value from different possible structures
+    let value = 0
+
+    if (food.nutrients && food.nutrients[nutrient] !== undefined) {
+      value = food.nutrients[nutrient]
+    } else if (food.nutrition && food.nutrition[nutrient] !== undefined) {
+      value = food.nutrition[nutrient]
+    } else if (food.nutritionalInfo && food.nutritionalInfo[nutrient] !== undefined) {
+      value = food.nutritionalInfo[nutrient]
+    } else if (nutrient === "carbs" && food.nutrients && food.nutrients.carbohydrates !== undefined) {
+      value = food.nutrients.carbohydrates
+    } else if (nutrient === "carbs" && food.nutrition && food.nutrition.carbohydrates !== undefined) {
+      value = food.nutrition.carbohydrates
+    }
+
+    return value * ratio
+  }
+
   // Add note to diary
   const addNoteToDiary = () => {
     if (!newNote.trim()) return
+
+    console.log("Adding note to diary:", newNote)
 
     const note: NoteItem = {
       id: `note-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
@@ -404,7 +461,12 @@ export function CalorieTracker() {
     }
 
     // Add the new note to the diary entries
-    setDiaryEntries((prev) => [...prev, note].sort((a, b) => a.timestamp - b.timestamp))
+    setDiaryEntries((prev) => {
+      const newEntries = [...prev, note].sort((a, b) => a.timestamp - b.timestamp)
+      console.log("Updated diary entries with note:", newEntries)
+      return newEntries
+    })
+
     setNewNote("")
   }
 
@@ -446,6 +508,12 @@ export function CalorieTracker() {
     }
   }
 
+  // Handle date change
+  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newDate = e.target.value
+    setSelectedDate(newDate)
+  }
+
   // If there's an error loading user data, show an error message with a retry button
   if (error) {
     return (
@@ -454,7 +522,7 @@ export function CalorieTracker() {
           <CardTitle className="text-red-500">Error</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <p>{error}</p>
+          <p className="text-white">{error}</p>
           <Button onClick={refreshUserData} className="button-orange w-full">
             <RefreshCw className="mr-2 h-4 w-4" />
             Retry
@@ -469,7 +537,7 @@ export function CalorieTracker() {
     return (
       <Card className="card-gradient">
         <CardHeader>
-          <CardTitle>Loading</CardTitle>
+          <CardTitle className="text-white">Loading</CardTitle>
         </CardHeader>
         <CardContent className="flex justify-center py-8">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500"></div>
@@ -480,11 +548,30 @@ export function CalorieTracker() {
 
   return (
     <div className="flex flex-col space-y-6">
+      {/* Date Selector */}
+      <Card className="card-gradient">
+        <CardContent className="pt-4">
+          <div className="flex items-center gap-2">
+            <Calendar className="h-5 w-5 text-orange-500" />
+            <label htmlFor="date-selector" className="text-white font-medium">
+              Select Date:
+            </label>
+            <Input
+              id="date-selector"
+              type="date"
+              value={selectedDate}
+              onChange={handleDateChange}
+              className="input-dark w-auto text-white"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Daily Summary - Sticky Header */}
       <div className="sticky top-0 z-10 bg-background pt-4 pb-2 shadow-md">
         <Card className="card-gradient">
           <CardHeader className="pb-2">
-            <CardTitle className="flex justify-between items-center">
+            <CardTitle className="flex justify-between items-center text-white">
               <span>Daily Summary</span>
               <span className={`text-xl ${remaining.calories < 0 ? "text-red-500" : "text-green-500"}`}>
                 {remaining.calories < 0 ? "-" : ""}
@@ -495,7 +582,7 @@ export function CalorieTracker() {
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="space-y-2">
-                <div className="flex justify-between">
+                <div className="flex justify-between text-white">
                   <span>Calories</span>
                   <span>
                     {Math.round(dailyTotals.calories)} / {dailyGoals.calories}
@@ -508,7 +595,7 @@ export function CalorieTracker() {
                 />
               </div>
               <div className="space-y-2">
-                <div className="flex justify-between">
+                <div className="flex justify-between text-white">
                   <span>Protein</span>
                   <span>
                     {Math.round(dailyTotals.protein)}g / {dailyGoals.protein}g
@@ -517,7 +604,7 @@ export function CalorieTracker() {
                 <Progress value={percentages.protein} className="h-2" indicatorClassName="bg-blue-500" />
               </div>
               <div className="space-y-2">
-                <div className="flex justify-between">
+                <div className="flex justify-between text-white">
                   <span>Carbs</span>
                   <span>
                     {Math.round(dailyTotals.carbs)}g / {dailyGoals.carbs}g
@@ -526,7 +613,7 @@ export function CalorieTracker() {
                 <Progress value={percentages.carbs} className="h-2" indicatorClassName="bg-green-500" />
               </div>
               <div className="space-y-2">
-                <div className="flex justify-between">
+                <div className="flex justify-between text-white">
                   <span>Fat</span>
                   <span>
                     {Math.round(dailyTotals.fat)}g / {dailyGoals.fat}g
@@ -542,7 +629,7 @@ export function CalorieTracker() {
       {/* Food Search Section */}
       <Card className="card-gradient">
         <CardHeader>
-          <CardTitle>Add Food</CardTitle>
+          <CardTitle className="text-white">Add Food</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -553,18 +640,18 @@ export function CalorieTracker() {
                   placeholder="Search for a food (e.g., banana, roti, rice)"
                   value={searchTerm}
                   onChange={handleSearchChange}
-                  className="input-dark flex-grow"
+                  className="input-dark flex-grow text-white"
                 />
 
                 {showSearchResults && searchResults.length > 0 && (
                   <div className="absolute z-20 mt-1 w-full bg-gray-900 border border-gray-700 rounded-md shadow-lg max-h-60 overflow-y-auto">
                     <div className="flex justify-between items-center p-2 border-b border-gray-700">
-                      <span className="text-sm font-medium">Search Results</span>
+                      <span className="text-sm font-medium text-white">Search Results</span>
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => setShowSearchResults(false)}
-                        className="h-6 w-6 p-0"
+                        className="h-6 w-6 p-0 text-white"
                       >
                         <X className="h-4 w-4" />
                       </Button>
@@ -573,7 +660,7 @@ export function CalorieTracker() {
                       {searchResults.map((food) => (
                         <li
                           key={`${food.source}-${food.id}`}
-                          className="px-3 py-2 hover:bg-gray-800 cursor-pointer border-b border-gray-800"
+                          className="px-3 py-2 hover:bg-gray-800 cursor-pointer border-b border-gray-800 text-white"
                           onClick={() => handleFoodSelect(food)}
                         >
                           <div className="font-medium">{food.name || food.foodName || food.description}</div>
@@ -585,7 +672,9 @@ export function CalorieTracker() {
                                 ? "Custom Foods"
                                 : food.source === "template"
                                   ? "Meal Template"
-                                  : "USDA"}
+                                  : food.source === "default"
+                                    ? "Default Foods"
+                                    : "USDA"}
                           </div>
                         </li>
                       ))}
@@ -594,13 +683,13 @@ export function CalorieTracker() {
                 )}
 
                 {showSearchResults && searchResults.length === 0 && isSearching && (
-                  <div className="absolute z-20 mt-1 w-full bg-gray-900 border border-gray-700 rounded-md shadow-lg p-3">
+                  <div className="absolute z-20 mt-1 w-full bg-gray-900 border border-gray-700 rounded-md shadow-lg p-3 text-white">
                     Searching for "{searchTerm}"...
                   </div>
                 )}
 
                 {showSearchResults && searchResults.length === 0 && !isSearching && searchTerm.trim() !== "" && (
-                  <div className="absolute z-20 mt-1 w-full bg-gray-900 border border-gray-700 rounded-md shadow-lg p-3">
+                  <div className="absolute z-20 mt-1 w-full bg-gray-900 border border-gray-700 rounded-md shadow-lg p-3 text-white">
                     No foods found. Try a different search term.
                   </div>
                 )}
@@ -609,12 +698,12 @@ export function CalorieTracker() {
 
             {selectedFood && (
               <div className="bg-gray-800 p-4 rounded-md">
-                <h3 className="font-medium mb-2">
+                <h3 className="font-medium mb-2 text-white">
                   {selectedFood.name || selectedFood.foodName || selectedFood.description}
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm mb-1">Serving Size</label>
+                    <label className="block text-sm mb-1 text-white">Serving Size</label>
                     <div className="flex items-center">
                       <Input
                         type="number"
@@ -623,13 +712,13 @@ export function CalorieTracker() {
                         onChange={(e) =>
                           setServingSize({ ...servingSize, amount: Number.parseInt(e.target.value) || 0 })
                         }
-                        className="input-dark w-20 mr-2"
+                        className="input-dark w-20 mr-2 text-white"
                       />
                       <Select
                         value={servingSize.unit}
                         onValueChange={(value) => setServingSize({ ...servingSize, unit: value })}
                       >
-                        <SelectTrigger className="select-dark w-24">
+                        <SelectTrigger className="select-dark w-24 text-white">
                           <SelectValue placeholder="Unit" />
                         </SelectTrigger>
                         <SelectContent>
@@ -645,19 +734,23 @@ export function CalorieTracker() {
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm mb-1">Quantity</label>
+                    <label className="block text-sm mb-1 text-white">Quantity</label>
                     <Input
                       type="number"
                       min="0.25"
                       step="0.25"
                       value={quantity}
                       onChange={(e) => setQuantity(Number.parseFloat(e.target.value) || 0)}
-                      className="input-dark"
+                      className="input-dark text-white"
                     />
                   </div>
                 </div>
                 <div className="mt-4 flex justify-end">
-                  <Button variant="outline" onClick={() => setSelectedFood(null)} className="mr-2 button-outline">
+                  <Button
+                    variant="outline"
+                    onClick={() => setSelectedFood(null)}
+                    className="mr-2 button-outline text-white"
+                  >
                     Cancel
                   </Button>
                   <Button onClick={addFoodToDiary} className="button-orange">
@@ -670,13 +763,13 @@ export function CalorieTracker() {
 
             {/* Add Note Section */}
             <div className="mt-4">
-              <label className="block text-sm mb-1">Add Note</label>
+              <label className="block text-sm mb-1 text-white">Add Note</label>
               <div className="flex items-start gap-2">
                 <Textarea
                   placeholder="Add a note (e.g., 'Feeling hungry today', 'Skipped breakfast')"
                   value={newNote}
                   onChange={(e) => setNewNote(e.target.value)}
-                  className="input-dark flex-grow"
+                  className="input-dark flex-grow text-white"
                   rows={2}
                 />
                 <Button onClick={addNoteToDiary} className="button-orange mt-1" disabled={!newNote.trim()}>
@@ -692,11 +785,11 @@ export function CalorieTracker() {
       {/* Food Diary */}
       <Card className="card-gradient">
         <CardHeader>
-          <CardTitle>Food Diary</CardTitle>
+          <CardTitle className="text-white">Food Diary</CardTitle>
         </CardHeader>
         <CardContent>
           {diaryEntries.length === 0 ? (
-            <div className="text-center py-6 text-gray-500">No entries yet. Add foods or notes to get started.</div>
+            <div className="text-center py-6 text-gray-400">No entries yet. Add foods or notes to get started.</div>
           ) : (
             <div className="space-y-4">
               {diaryEntries.map((entry) => {
@@ -705,7 +798,7 @@ export function CalorieTracker() {
                   return (
                     <div key={entry.id} className="bg-gray-800 p-3 rounded-md flex justify-between items-center">
                       <div>
-                        <div className="font-medium">{entry.name}</div>
+                        <div className="font-medium text-white">{entry.name}</div>
                         <div className="text-sm text-gray-400">
                           {entry.quantity} × {entry.servingSize.amount}
                           {entry.servingSize.unit}
@@ -713,7 +806,7 @@ export function CalorieTracker() {
                       </div>
                       <div className="flex items-center gap-4">
                         <div className="text-right">
-                          <div>{Math.round(entry.nutrition.calories * entry.quantity)} kcal</div>
+                          <div className="text-white">{Math.round(entry.nutrition.calories * entry.quantity)} kcal</div>
                           <div className="text-xs text-gray-400">
                             P: {Math.round(entry.nutrition.protein * entry.quantity)}g | C:{" "}
                             {Math.round(entry.nutrition.carbs * entry.quantity)}g | F:{" "}
@@ -748,7 +841,7 @@ export function CalorieTracker() {
                         <div className="flex flex-col gap-2">
                           <Textarea
                             defaultValue={entry.content}
-                            className="input-dark"
+                            className="input-dark text-white"
                             rows={2}
                             id={`note-edit-${entry.id}`}
                           />
@@ -757,7 +850,7 @@ export function CalorieTracker() {
                               variant="outline"
                               size="sm"
                               onClick={() => setEditingNoteId(null)}
-                              className="button-outline"
+                              className="button-outline text-white"
                             >
                               Cancel
                             </Button>
@@ -778,7 +871,7 @@ export function CalorieTracker() {
                         </div>
                       ) : (
                         <div className="flex justify-between items-start">
-                          <div className="whitespace-pre-wrap">{entry.content}</div>
+                          <div className="whitespace-pre-wrap text-white">{entry.content}</div>
                           <div className="flex gap-1">
                             <TooltipProvider>
                               <Tooltip>
@@ -830,44 +923,44 @@ export function CalorieTracker() {
       {/* Nutrition Goals Settings */}
       <Card className="card-gradient">
         <CardHeader>
-          <CardTitle>Nutrition Goals</CardTitle>
+          <CardTitle className="text-white">Nutrition Goals</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
-              <label className="block text-sm mb-1">Daily Calories</label>
+              <label className="block text-sm mb-1 text-white">Daily Calories</label>
               <Input
                 type="number"
                 value={dailyGoals.calories}
                 onChange={(e) => updateDailyGoals({ calories: Number.parseInt(e.target.value) || 0 })}
-                className="input-dark"
+                className="input-dark text-white"
               />
             </div>
             <div>
-              <label className="block text-sm mb-1">Protein (g)</label>
+              <label className="block text-sm mb-1 text-white">Protein (g)</label>
               <Input
                 type="number"
                 value={dailyGoals.protein}
                 onChange={(e) => updateDailyGoals({ protein: Number.parseInt(e.target.value) || 0 })}
-                className="input-dark"
+                className="input-dark text-white"
               />
             </div>
             <div>
-              <label className="block text-sm mb-1">Carbs (g)</label>
+              <label className="block text-sm mb-1 text-white">Carbs (g)</label>
               <Input
                 type="number"
                 value={dailyGoals.carbs}
                 onChange={(e) => updateDailyGoals({ carbs: Number.parseInt(e.target.value) || 0 })}
-                className="input-dark"
+                className="input-dark text-white"
               />
             </div>
             <div>
-              <label className="block text-sm mb-1">Fat (g)</label>
+              <label className="block text-sm mb-1 text-white">Fat (g)</label>
               <Input
                 type="number"
                 value={dailyGoals.fat}
                 onChange={(e) => updateDailyGoals({ fat: Number.parseInt(e.target.value) || 0 })}
-                className="input-dark"
+                className="input-dark text-white"
               />
             </div>
           </div>

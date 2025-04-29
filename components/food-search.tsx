@@ -1,6 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import type React from "react"
+
+import { useState, useEffect, useRef } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -32,6 +34,7 @@ export function FoodSearch() {
   const [activeTab, setActiveTab] = useState<"all" | "ifct" | "usda" | "custom" | "templates" | "recipes">("all")
   const [isInitialLoad, setIsInitialLoad] = useState(true)
   const [recentFoods, setRecentFoods] = useState<FoodItem[]>([])
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Fetch recent foods on initial load
   useEffect(() => {
@@ -437,6 +440,30 @@ export function FoodSearch() {
     }
   }
 
+  // Handle search input change with immediate results
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const term = e.target.value
+    setSearchTerm(term)
+
+    // Clear any existing timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current)
+    }
+
+    // Always search immediately when typing, even with a single character
+    if (term.trim().length > 0) {
+      setIsSearching(true)
+
+      // Use a very short timeout for immediate response
+      searchTimeoutRef.current = setTimeout(() => {
+        handleSearch()
+      }, 50) // Very short timeout for immediate response
+    } else {
+      setSearchResults([])
+      setIsSearching(false)
+    }
+  }
+
   // Update the handleSearch function to include recipes
   const handleSearch = async () => {
     if (!searchTerm.trim()) return
@@ -498,10 +525,12 @@ export function FoodSearch() {
   })
 
   return (
-    <Card className="w-full">
+    <Card className="card-gradient">
       <CardHeader>
-        <CardTitle>Food Search</CardTitle>
-        <CardDescription>Search for foods in IFCT, USDA, custom foods, and meal templates</CardDescription>
+        <CardTitle className="text-white">Food Search</CardTitle>
+        <CardDescription className="text-gray-300">
+          Search for foods in IFCT, USDA, custom foods, and meal templates
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
@@ -509,11 +538,11 @@ export function FoodSearch() {
             <Input
               placeholder="Search for a food item..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={handleSearchChange}
               onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-              className="flex-1"
+              className="flex-1 input-dark text-white"
             />
-            <Button onClick={handleSearch} disabled={isSearching || !searchTerm.trim()}>
+            <Button onClick={handleSearch} disabled={isSearching || !searchTerm.trim()} className="button-orange">
               {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
               <span className="ml-2 hidden sm:inline">Search</span>
             </Button>
@@ -529,13 +558,25 @@ export function FoodSearch() {
 
           {searchResults.length > 0 ? (
             <Tabs defaultValue="all" value={activeTab} onValueChange={(value) => setActiveTab(value as any)}>
-              <TabsList className="grid w-full grid-cols-6">
-                <TabsTrigger value="all">All Results</TabsTrigger>
-                <TabsTrigger value="ifct">IFCT</TabsTrigger>
-                <TabsTrigger value="usda">USDA</TabsTrigger>
-                <TabsTrigger value="custom">Custom</TabsTrigger>
-                <TabsTrigger value="recipe">Recipes</TabsTrigger>
-                <TabsTrigger value="templates">Templates</TabsTrigger>
+              <TabsList className="grid w-full grid-cols-6 tabs-list">
+                <TabsTrigger value="all" className="tab-trigger text-white">
+                  All Results
+                </TabsTrigger>
+                <TabsTrigger value="ifct" className="tab-trigger text-white">
+                  IFCT
+                </TabsTrigger>
+                <TabsTrigger value="usda" className="tab-trigger text-white">
+                  USDA
+                </TabsTrigger>
+                <TabsTrigger value="custom" className="tab-trigger text-white">
+                  Custom
+                </TabsTrigger>
+                <TabsTrigger value="recipe" className="tab-trigger text-white">
+                  Recipes
+                </TabsTrigger>
+                <TabsTrigger value="templates" className="tab-trigger text-white">
+                  Templates
+                </TabsTrigger>
               </TabsList>
               <TabsContent value="all" className="mt-4">
                 <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
@@ -544,7 +585,7 @@ export function FoodSearch() {
                   ))}
                 </div>
                 {filteredResults.length === 0 && (
-                  <div className="text-center py-8 text-muted-foreground">No results found in this category</div>
+                  <div className="text-center py-8 text-gray-400">No results found in this category</div>
                 )}
               </TabsContent>
               <TabsContent value="ifct" className="mt-4">
@@ -554,7 +595,7 @@ export function FoodSearch() {
                   ))}
                 </div>
                 {filteredResults.length === 0 && (
-                  <div className="text-center py-8 text-muted-foreground">No results found in this category</div>
+                  <div className="text-center py-8 text-gray-400">No results found in this category</div>
                 )}
               </TabsContent>
               <TabsContent value="usda" className="mt-4">
@@ -564,7 +605,7 @@ export function FoodSearch() {
                   ))}
                 </div>
                 {filteredResults.length === 0 && (
-                  <div className="text-center py-8 text-muted-foreground">No results found in this category</div>
+                  <div className="text-center py-8 text-gray-400">No results found in this category</div>
                 )}
               </TabsContent>
               <TabsContent value="custom" className="mt-4">
@@ -574,7 +615,7 @@ export function FoodSearch() {
                   ))}
                 </div>
                 {filteredResults.length === 0 && (
-                  <div className="text-center py-8 text-muted-foreground">No results found in this category</div>
+                  <div className="text-center py-8 text-gray-400">No results found in this category</div>
                 )}
               </TabsContent>
               <TabsContent value="recipe" className="mt-4">
@@ -584,7 +625,7 @@ export function FoodSearch() {
                   ))}
                 </div>
                 {filteredResults.length === 0 && (
-                  <div className="text-center py-8 text-muted-foreground">No results found in this category</div>
+                  <div className="text-center py-8 text-gray-400">No results found in this category</div>
                 )}
               </TabsContent>
               <TabsContent value="templates" className="mt-4">
@@ -594,22 +635,22 @@ export function FoodSearch() {
                   ))}
                 </div>
                 {filteredResults.length === 0 && (
-                  <div className="text-center py-8 text-muted-foreground">No results found in this category</div>
+                  <div className="text-center py-8 text-gray-400">No results found in this category</div>
                 )}
               </TabsContent>
             </Tabs>
           ) : !isSearching && searchTerm ? (
-            <div className="text-center py-8 text-muted-foreground">No results found for "{searchTerm}"</div>
+            <div className="text-center py-8 text-gray-400">No results found for "{searchTerm}"</div>
           ) : !searchTerm ? (
             <div className="space-y-4">
-              <h3 className="text-sm font-medium">Recent Foods</h3>
+              <h3 className="text-sm font-medium text-white">Recent Foods</h3>
               <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
                 {recentFoods.map((food) => (
                   <FoodCard key={`${food.source}-${food.id}`} food={food} />
                 ))}
               </div>
               {recentFoods.length === 0 && !isSearching && (
-                <div className="text-center py-8 text-muted-foreground">Enter a food item to search</div>
+                <div className="text-center py-8 text-gray-400">Enter a food item to search</div>
               )}
             </div>
           ) : null}
@@ -625,17 +666,17 @@ function FoodCard({ food }: { food: FoodItem }) {
   const getBgColor = (source: string) => {
     switch (source) {
       case "ifct":
-        return "bg-orange-50"
+        return "bg-orange-950"
       case "usda":
-        return "bg-blue-50"
+        return "bg-blue-950"
       case "custom":
-        return "bg-green-50"
+        return "bg-green-950"
       case "template":
-        return "bg-purple-50"
+        return "bg-purple-950"
       case "recipe":
-        return "bg-pink-50"
+        return "bg-pink-950"
       default:
-        return "bg-gray-50"
+        return "bg-gray-950"
     }
   }
 
@@ -643,17 +684,17 @@ function FoodCard({ food }: { food: FoodItem }) {
   const getBadgeColor = (source: string) => {
     switch (source) {
       case "ifct":
-        return "bg-orange-100 text-orange-800 border-orange-200"
+        return "bg-orange-900 text-orange-100 border-orange-800"
       case "usda":
-        return "bg-blue-100 text-blue-800 border-blue-200"
+        return "bg-blue-900 text-blue-100 border-blue-800"
       case "custom":
-        return "bg-green-100 text-green-800 border-green-200"
+        return "bg-green-900 text-green-100 border-green-800"
       case "template":
-        return "bg-purple-100 text-purple-800 border-purple-200"
+        return "bg-purple-900 text-purple-100 border-purple-800"
       case "recipe":
-        return "bg-pink-100 text-pink-800 border-pink-200"
+        return "bg-pink-900 text-pink-100 border-pink-800"
       default:
-        return "bg-gray-100 text-gray-800 border-gray-200"
+        return "bg-gray-900 text-gray-100 border-gray-800"
     }
   }
 
@@ -694,35 +735,35 @@ function FoodCard({ food }: { food: FoodItem }) {
   }
 
   return (
-    <Card className="overflow-hidden">
+    <Card className="overflow-hidden card-gradient">
       <div className={`p-2 ${getBgColor(food.source)}`}>
         <div className="flex justify-between items-center">
           <Badge variant="outline" className={getBadgeColor(food.source)}>
             {getIcon(food.source)}
             {getSourceName(food.source)}
           </Badge>
-          {food.category && <span className="text-xs text-muted-foreground">{food.category}</span>}
+          {food.category && <span className="text-xs text-gray-400">{food.category}</span>}
         </div>
       </div>
       <CardContent className="p-4">
-        <h3 className="font-medium text-lg mb-2 line-clamp-2">{food.name}</h3>
-        {food.description && <p className="text-xs text-muted-foreground mb-2 line-clamp-2">{food.description}</p>}
+        <h3 className="font-medium text-lg mb-2 line-clamp-2 text-white">{food.name}</h3>
+        {food.description && <p className="text-xs text-gray-400 mb-2 line-clamp-2">{food.description}</p>}
         <div className="grid grid-cols-2 gap-2">
-          <div className="bg-gray-50 p-2 rounded">
-            <div className="text-sm text-muted-foreground">Energy</div>
-            <div className="font-medium">{food.calories} kcal</div>
+          <div className="bg-gray-800 p-2 rounded">
+            <div className="text-sm text-gray-400">Energy</div>
+            <div className="font-medium text-white">{food.calories} kcal</div>
           </div>
-          <div className="bg-gray-50 p-2 rounded">
-            <div className="text-sm text-muted-foreground">Protein</div>
-            <div className="font-medium">{food.protein} g</div>
+          <div className="bg-gray-800 p-2 rounded">
+            <div className="text-sm text-gray-400">Protein</div>
+            <div className="font-medium text-white">{food.protein} g</div>
           </div>
-          <div className="bg-gray-50 p-2 rounded">
-            <div className="text-sm text-muted-foreground">Fat</div>
-            <div className="font-medium">{food.fat} g</div>
+          <div className="bg-gray-800 p-2 rounded">
+            <div className="text-sm text-gray-400">Fat</div>
+            <div className="font-medium text-white">{food.fat} g</div>
           </div>
-          <div className="bg-gray-50 p-2 rounded">
-            <div className="text-sm text-muted-foreground">Carbs</div>
-            <div className="font-medium">{food.carbs} g</div>
+          <div className="bg-gray-800 p-2 rounded">
+            <div className="text-sm text-gray-400">Carbs</div>
+            <div className="font-medium text-white">{food.carbs} g</div>
           </div>
         </div>
       </CardContent>
