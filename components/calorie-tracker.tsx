@@ -33,6 +33,7 @@ interface FoodItem {
     fat: number
   }
   timestamp: number
+  category?: string // Added for meal categorization (breakfast, lunch, dinner, snack)
 }
 
 interface NoteItem {
@@ -82,6 +83,7 @@ export function CalorieTracker() {
   const [isUserLoading, setIsUserLoading] = useState(true)
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split("T")[0])
+  const [selectedCategory, setSelectedCategory] = useState<string>("any")
 
   // Calculate daily totals
   const dailyTotals = diaryEntries.reduce(
@@ -113,9 +115,12 @@ export function CalorieTracker() {
     fat: Math.min(100, (dailyTotals.fat / dailyGoals.fat) * 100),
   }
 
-  // Direct search function for IFCT foods
+  // Direct search function for IFCT foods - IMPROVED FOR REAL-TIME SEARCH
   const searchIFCTFoods = async (term: string) => {
+    if (!term || term.length < 2) return []
+
     try {
+      console.log("Searching IFCT for:", term)
       const foodsRef = collection(db, "ifct_foods")
       const results: any[] = []
 
@@ -165,6 +170,7 @@ export function CalorieTracker() {
         })
       }
 
+      console.log(`Found ${results.length} IFCT results for "${term}"`)
       return results
     } catch (error) {
       console.error("Error searching IFCT foods:", error)
@@ -172,9 +178,58 @@ export function CalorieTracker() {
     }
   }
 
+  // Search USDA database - IMPROVED FOR REAL-TIME SEARCH
+  const searchUSDAFoods = async (term: string) => {
+    if (!term || term.length < 2) return []
+
+    try {
+      console.log("Searching USDA for:", term)
+      // Use the API proxy route
+      const response = await fetch(`/api/usda?action=search&query=${encodeURIComponent(term)}`)
+
+      if (!response.ok) {
+        throw new Error(`USDA API error: ${response.status}`)
+      }
+
+      const data = await response.json()
+
+      if (!data.foods || data.foods.length === 0) {
+        return []
+      }
+
+      const results = data.foods.map((food: any) => {
+        // Extract nutrients
+        const nutrients = food.foodNutrients || []
+        const calories = nutrients.find((n: any) => n.nutrientNumber === "208")?.value || 0
+        const protein = nutrients.find((n: any) => n.nutrientNumber === "203")?.value || 0
+        const fat = nutrients.find((n: any) => n.nutrientNumber === "204")?.value || 0
+        const carbs = nutrients.find((n: any) => n.nutrientNumber === "205")?.value || 0
+
+        return {
+          id: food.fdcId,
+          name: food.description || "Unknown Food",
+          source: "usda",
+          nutrients: {
+            calories: calories,
+            protein: protein,
+            fat: fat,
+            carbohydrates: carbs,
+          },
+          category: food.foodCategory || "USDA",
+        }
+      })
+
+      console.log(`Found ${results.length} USDA results for "${term}"`)
+      return results
+    } catch (error) {
+      console.error("Error searching USDA foods:", error)
+      return []
+    }
+  }
+
   // Fallback search function with default foods
-  const getFallbackFoods = () => {
-    return [
+  const getFallbackFoods = (term: string) => {
+    const defaultFoods = [
       {
         id: "default-1",
         name: "Banana",
@@ -235,7 +290,122 @@ export function CalorieTracker() {
         },
         category: "Protein",
       },
+      {
+        id: "default-6",
+        name: "Egg, whole",
+        source: "default",
+        nutrients: {
+          calories: 72,
+          protein: 6.3,
+          fat: 4.8,
+          carbohydrates: 0.4,
+        },
+        category: "Protein",
+      },
+      {
+        id: "default-7",
+        name: "Milk, whole",
+        source: "default",
+        nutrients: {
+          calories: 61,
+          protein: 3.2,
+          fat: 3.3,
+          carbohydrates: 4.8,
+        },
+        category: "Dairy",
+      },
+      {
+        id: "default-8",
+        name: "Spinach, raw",
+        source: "default",
+        nutrients: {
+          calories: 23,
+          protein: 2.9,
+          fat: 0.4,
+          carbohydrates: 3.6,
+        },
+        category: "Vegetables",
+      },
+      {
+        id: "default-9",
+        name: "Lentils, cooked",
+        source: "default",
+        nutrients: {
+          calories: 116,
+          protein: 9.0,
+          fat: 0.4,
+          carbohydrates: 20.0,
+        },
+        category: "Legumes",
+      },
+      {
+        id: "default-10",
+        name: "Salmon, cooked",
+        source: "default",
+        nutrients: {
+          calories: 206,
+          protein: 22.1,
+          fat: 12.4,
+          carbohydrates: 0,
+        },
+        category: "Protein",
+      },
     ]
+
+    if (!term) return defaultFoods
+
+    return defaultFoods.filter((food) => food.name.toLowerCase().includes(term.toLowerCase()))
+  }
+
+  // IMPROVED REAL-TIME SEARCH FUNCTION
+  const performSearch = async (term: string) => {
+    if (!term || term.trim() === "") {
+      setSearchResults(getFallbackFoods(""))
+      setIsSearching(false)
+      return
+    }
+
+    setIsSearching(true)
+    console.log("Performing search for:", term)
+
+    try {
+      // Search in parallel for faster results
+      const [ifctResults, usdaResults] = await Promise.all([searchIFCTFoods(term), searchUSDAFoods(term)])
+
+      // Get fallback results if needed
+      const fallbackResults = term.length >= 2 ? getFallbackFoods(term) : []
+
+      // Combine all results
+      const combinedResults = [...ifctResults, ...usdaResults, ...fallbackResults]
+
+      // Prioritize exact matches
+      const exactMatches = combinedResults.filter((food) => food.name.toLowerCase() === term.toLowerCase())
+
+      const startsWithMatches = combinedResults.filter(
+        (food) =>
+          food.name.toLowerCase().startsWith(term.toLowerCase()) && food.name.toLowerCase() !== term.toLowerCase(),
+      )
+
+      const otherMatches = combinedResults.filter(
+        (food) =>
+          !food.name.toLowerCase().startsWith(term.toLowerCase()) && food.name.toLowerCase() !== term.toLowerCase(),
+      )
+
+      // Sort results by relevance
+      const sortedResults = [...exactMatches, ...startsWithMatches, ...otherMatches]
+
+      // Limit to 20 results for performance
+      const limitedResults = sortedResults.slice(0, 20)
+
+      console.log(`Found ${limitedResults.length} total results for "${term}"`)
+      setSearchResults(limitedResults)
+    } catch (error) {
+      console.error("Search error:", error)
+      // Use fallback foods if search fails
+      setSearchResults(getFallbackFoods(term))
+    } finally {
+      setIsSearching(false)
+    }
   }
 
   // Handle search input change with immediate results
@@ -251,35 +421,10 @@ export function CalorieTracker() {
     // Show search results immediately when typing
     if (term.trim().length > 0) {
       setShowSearchResults(true)
-      setIsSearching(true)
 
       // Use a very short timeout for immediate response
-      searchTimeoutRef.current = setTimeout(async () => {
-        try {
-          // First try to search IFCT foods
-          const ifctResults = await searchIFCTFoods(term)
-
-          if (ifctResults.length > 0) {
-            setSearchResults(ifctResults)
-          } else {
-            // If no IFCT results, filter fallback foods
-            const fallbackFoods = getFallbackFoods()
-            const filteredFallbackFoods = fallbackFoods.filter((food) =>
-              food.name.toLowerCase().includes(term.toLowerCase()),
-            )
-            setSearchResults(filteredFallbackFoods)
-          }
-        } catch (error) {
-          console.error("Error searching for foods:", error)
-          // Use fallback foods if search fails
-          const fallbackFoods = getFallbackFoods()
-          const filteredFallbackFoods = fallbackFoods.filter((food) =>
-            food.name.toLowerCase().includes(term.toLowerCase()),
-          )
-          setSearchResults(filteredFallbackFoods)
-        } finally {
-          setIsSearching(false)
-        }
+      searchTimeoutRef.current = setTimeout(() => {
+        performSearch(term)
       }, 100) // Very short timeout for immediate response
     } else {
       setShowSearchResults(false)
@@ -407,6 +552,8 @@ export function CalorieTracker() {
       },
       nutrition,
       timestamp: Date.now(),
+      category:
+        selectedCategory !== "any" ? selectedCategory : determineFoodCategory(selectedFood.name, new Date().getHours()),
     }
 
     console.log("New food entry:", newFood)
@@ -422,6 +569,57 @@ export function CalorieTracker() {
     setSelectedFood(null)
     setQuantity(1)
     setSearchTerm("")
+  }
+
+  // Determine food category based on name and time of day
+  const determineFoodCategory = (foodName: string, hour: number): string => {
+    const name = foodName.toLowerCase()
+
+    // Check for specific food types
+    if (
+      name.includes("breakfast") ||
+      name.includes("cereal") ||
+      name.includes("oatmeal") ||
+      name.includes("pancake") ||
+      name.includes("waffle") ||
+      name.includes("toast") ||
+      name.includes("idli") ||
+      name.includes("dosa") ||
+      name.includes("upma") ||
+      name.includes("poha")
+    ) {
+      return "breakfast"
+    }
+
+    if (name.includes("dinner") || name.includes("supper")) {
+      return "dinner"
+    }
+
+    if (name.includes("lunch")) {
+      return "lunch"
+    }
+
+    if (
+      name.includes("snack") ||
+      name.includes("cookie") ||
+      name.includes("chips") ||
+      name.includes("nuts") ||
+      name.includes("fruit") ||
+      name.includes("yogurt")
+    ) {
+      return "snack"
+    }
+
+    // Determine by time of day
+    if (hour >= 5 && hour < 11) {
+      return "breakfast"
+    } else if (hour >= 11 && hour < 15) {
+      return "lunch"
+    } else if (hour >= 15 && hour < 18) {
+      return "snack"
+    } else {
+      return "dinner"
+    }
   }
 
   // Calculate nutrition value based on serving size
@@ -513,6 +711,13 @@ export function CalorieTracker() {
     const newDate = e.target.value
     setSelectedDate(newDate)
   }
+
+  // Filter diary entries by category
+  const filteredDiaryEntries = diaryEntries.filter((entry) => {
+    if (selectedCategory === "any") return true
+    if (isNoteItem(entry)) return true
+    return (entry as FoodItem).category === selectedCategory
+  })
 
   // If there's an error loading user data, show an error message with a retry button
   if (error) {
@@ -637,7 +842,7 @@ export function CalorieTracker() {
               <div className="relative flex-grow">
                 <Input
                   type="text"
-                  placeholder="Search for a food (e.g., banana, roti, rice)"
+                  placeholder="Search for a food item..."
                   value={searchTerm}
                   onChange={handleSearchChange}
                   className="input-dark flex-grow text-white"
@@ -694,6 +899,23 @@ export function CalorieTracker() {
                   </div>
                 )}
               </div>
+            </div>
+
+            {/* Meal Category Selector */}
+            <div>
+              <label className="block text-sm mb-1 text-white">Meal Category</label>
+              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                <SelectTrigger className="select-dark text-white">
+                  <SelectValue placeholder="Select meal category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="any">Any Category</SelectItem>
+                  <SelectItem value="breakfast">Breakfast</SelectItem>
+                  <SelectItem value="lunch">Lunch</SelectItem>
+                  <SelectItem value="dinner">Dinner</SelectItem>
+                  <SelectItem value="snack">Snack</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             {selectedFood && (
@@ -788,20 +1010,80 @@ export function CalorieTracker() {
           <CardTitle className="text-white">Food Diary</CardTitle>
         </CardHeader>
         <CardContent>
-          {diaryEntries.length === 0 ? (
+          {/* Category Filter */}
+          <div className="mb-4">
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant={selectedCategory === "any" ? "default" : "outline"}
+                onClick={() => setSelectedCategory("any")}
+                className={selectedCategory === "any" ? "bg-orange-600" : "text-white"}
+              >
+                All
+              </Button>
+              <Button
+                variant={selectedCategory === "breakfast" ? "default" : "outline"}
+                onClick={() => setSelectedCategory("breakfast")}
+                className={selectedCategory === "breakfast" ? "bg-blue-600" : "text-white"}
+              >
+                Breakfast
+              </Button>
+              <Button
+                variant={selectedCategory === "lunch" ? "default" : "outline"}
+                onClick={() => setSelectedCategory("lunch")}
+                className={selectedCategory === "lunch" ? "bg-green-600" : "text-white"}
+              >
+                Lunch
+              </Button>
+              <Button
+                variant={selectedCategory === "dinner" ? "default" : "outline"}
+                onClick={() => setSelectedCategory("dinner")}
+                className={selectedCategory === "dinner" ? "bg-purple-600" : "text-white"}
+              >
+                Dinner
+              </Button>
+              <Button
+                variant={selectedCategory === "snack" ? "default" : "outline"}
+                onClick={() => setSelectedCategory("snack")}
+                className={selectedCategory === "snack" ? "bg-yellow-600" : "text-white"}
+              >
+                Snack
+              </Button>
+            </div>
+          </div>
+
+          {filteredDiaryEntries.length === 0 ? (
             <div className="text-center py-6 text-gray-400">No entries yet. Add foods or notes to get started.</div>
           ) : (
             <div className="space-y-4">
-              {diaryEntries.map((entry) => {
+              {filteredDiaryEntries.map((entry) => {
                 if (isFoodItem(entry)) {
                   // Render food item
+                  const categoryColor =
+                    entry.category === "breakfast"
+                      ? "border-blue-500"
+                      : entry.category === "lunch"
+                        ? "border-green-500"
+                        : entry.category === "dinner"
+                          ? "border-purple-500"
+                          : entry.category === "snack"
+                            ? "border-yellow-500"
+                            : "border-gray-500"
+
                   return (
-                    <div key={entry.id} className="bg-gray-800 p-3 rounded-md flex justify-between items-center">
+                    <div
+                      key={entry.id}
+                      className={`bg-gray-800 p-3 rounded-md flex justify-between items-center border-l-4 ${categoryColor}`}
+                    >
                       <div>
                         <div className="font-medium text-white">{entry.name}</div>
                         <div className="text-sm text-gray-400">
                           {entry.quantity} × {entry.servingSize.amount}
                           {entry.servingSize.unit}
+                          {entry.category && (
+                            <span className="ml-2">
+                              • {entry.category.charAt(0).toUpperCase() + entry.category.slice(1)}
+                            </span>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center gap-4">
