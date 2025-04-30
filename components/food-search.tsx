@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect, useRef } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -9,9 +8,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { AlertCircle, Search, Loader2, Database, BookOpen, ChefHat, Utensils } from "lucide-react"
-import { collection, query, where, getDocs, limit, collectionGroup } from "firebase/firestore"
+import { AlertCircle, Search, Loader2, Database, BookOpen, ChefHat, Utensils, Star } from "lucide-react"
+import { collection, query, where, getDocs, limit, collectionGroup, orderBy } from "firebase/firestore"
 import { db } from "@/lib/firebase"
+import { useAuth } from "@/lib/use-auth"
 
 // Define the food item interface
 interface FoodItem {
@@ -21,12 +21,22 @@ interface FoodItem {
   protein: number
   fat: number
   carbs: number
+  fiber?: number
   source: "ifct" | "usda" | "custom" | "template" | "recipe"
   category?: string
   description?: string
+  servingSize?: string
+  servingWeight?: number
+  isFavorite?: boolean
 }
 
-export function FoodSearch() {
+interface FoodSearchProps {
+  onSelectFood?: (food: FoodItem) => void
+  showRecent?: boolean
+  showFavorites?: boolean
+}
+
+export function FoodSearch({ onSelectFood, showRecent = true, showFavorites = true }: FoodSearchProps) {
   const [searchTerm, setSearchTerm] = useState("")
   const [isSearching, setIsSearching] = useState(false)
   const [searchResults, setSearchResults] = useState<FoodItem[]>([])
@@ -34,107 +44,120 @@ export function FoodSearch() {
   const [activeTab, setActiveTab] = useState<"all" | "ifct" | "usda" | "custom" | "templates" | "recipes">("all")
   const [isInitialLoad, setIsInitialLoad] = useState(true)
   const [recentFoods, setRecentFoods] = useState<FoodItem[]>([])
+  const [favoriteFoods, setFavoriteFoods] = useState<FoodItem[]>([])
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const { user } = useAuth()
 
   // Fetch recent foods on initial load
   useEffect(() => {
-    if (isInitialLoad) {
+    if (isInitialLoad && user) {
       fetchRecentFoods()
+      if (showFavorites) {
+        fetchFavoriteFoods()
+      }
       setIsInitialLoad(false)
     }
-  }, [isInitialLoad])
+  }, [isInitialLoad, user, showFavorites])
 
   // Update the fetchRecentFoods function to ensure it fetches custom foods and recipes
   const fetchRecentFoods = async () => {
+    if (!user || !showRecent) return
+
     try {
       setIsSearching(true)
       const recentItems: FoodItem[] = []
 
-      // Fetch from IFCT foods
-      const ifctFoodsRef = collection(db, "ifct_foods")
-      const ifctQuery = query(ifctFoodsRef, limit(5))
-      const ifctSnapshot = await getDocs(ifctQuery)
+      // Fetch from recent foods collection
+      const recentFoodsRef = collection(db, "users", user.uid, "recentFoods")
+      const recentQuery = query(recentFoodsRef, orderBy("timestamp", "desc"), limit(5))
+      const recentSnapshot = await getDocs(recentQuery)
 
-      ifctSnapshot.forEach((doc) => {
+      recentSnapshot.forEach((doc) => {
         const data = doc.data()
         recentItems.push({
           id: doc.id,
           name: data.name || "Unknown Food",
-          calories: data.nutrients?.calories || 0,
-          protein: data.nutrients?.protein || 0,
-          fat: data.nutrients?.fat || 0,
-          carbs: data.nutrients?.carbohydrates || 0,
-          source: "ifct",
-          category: data.category || "General",
+          calories: data.calories || 0,
+          protein: data.protein || 0,
+          fat: data.fat || 0,
+          carbs: data.carbs || 0,
+          fiber: data.fiber || 0,
+          source: data.source || "custom",
+          category: data.category || "Recent",
           description: data.description || "",
+          servingSize: data.servingSize || "100g",
+          servingWeight: data.servingWeight || 100,
         })
       })
 
-      // Fetch from foodDatabase collection
-      const foodDbRef = collectionGroup(db, "foodDatabase")
-      const foodDbQuery = query(foodDbRef, limit(5))
-      const foodDbSnapshot = await getDocs(foodDbQuery)
+      // If we don't have enough recent foods, fetch some default foods
+      if (recentItems.length < 5) {
+        // Fetch from IFCT foods
+        const ifctFoodsRef = collection(db, "ifct_foods")
+        const ifctQuery = query(ifctFoodsRef, limit(5 - recentItems.length))
+        const ifctSnapshot = await getDocs(ifctQuery)
 
-      foodDbSnapshot.forEach((doc) => {
-        const data = doc.data()
-        recentItems.push({
-          id: doc.id,
-          name: data.name || data.foodName || "Custom Food",
-          calories: data.nutrients?.calories || data.nutritionalInfo?.calories || 0,
-          protein: data.nutrients?.protein || data.nutritionalInfo?.protein || 0,
-          fat: data.nutrients?.fat || data.nutritionalInfo?.fat || 0,
-          carbs: data.nutrients?.carbohydrates || data.nutritionalInfo?.carbs || 0,
-          source: "custom",
-          category: data.category || data.foodCategory || "Custom",
-          description: data.description || "",
+        ifctSnapshot.forEach((doc) => {
+          const data = doc.data()
+          recentItems.push({
+            id: doc.id,
+            name: data.name || "Unknown Food",
+            calories: data.nutrients?.calories || 0,
+            protein: data.nutrients?.protein || 0,
+            fat: data.nutrients?.fat || 0,
+            carbs: data.nutrients?.carbohydrates || 0,
+            fiber: data.nutrients?.fiber || 0,
+            source: "ifct",
+            category: data.category || "General",
+            description: data.description || "",
+            servingSize: "100g",
+            servingWeight: 100,
+          })
         })
-      })
-
-      // Fetch from meal_templates collection
-      const templatesRef = collectionGroup(db, "meal_templates")
-      const templatesQuery = query(templatesRef, limit(5))
-      const templatesSnapshot = await getDocs(templatesQuery)
-
-      templatesSnapshot.forEach((doc) => {
-        const data = doc.data()
-        recentItems.push({
-          id: doc.id,
-          name: data.name || data.templateName || "Meal Template",
-          calories: data.totalNutrition?.calories || 0,
-          protein: data.totalNutrition?.protein || 0,
-          fat: data.totalNutrition?.fat || 0,
-          carbs: data.totalNutrition?.carbs || 0,
-          source: "template",
-          category: data.category || data.mealType || "Template",
-          description: data.description || "",
-        })
-      })
-
-      // Fetch from recipes collection
-      const recipesRef = collectionGroup(db, "recipes")
-      const recipesQuery = query(recipesRef, limit(5))
-      const recipesSnapshot = await getDocs(recipesQuery)
-
-      recipesSnapshot.forEach((doc) => {
-        const data = doc.data()
-        recentItems.push({
-          id: doc.id,
-          name: data.name || data.recipeName || "Recipe",
-          calories: data.totalNutrition?.calories || 0,
-          protein: data.totalNutrition?.protein || 0,
-          fat: data.totalNutrition?.fat || 0,
-          carbs: data.totalNutrition?.carbs || 0,
-          source: "recipe",
-          category: data.category || "Recipe",
-          description: data.description || "",
-        })
-      })
+      }
 
       setRecentFoods(recentItems)
     } catch (error) {
       console.error("Error fetching recent foods:", error)
     } finally {
       setIsSearching(false)
+    }
+  }
+
+  // Fetch favorite foods
+  const fetchFavoriteFoods = async () => {
+    if (!user || !showFavorites) return
+
+    try {
+      const favoriteItems: FoodItem[] = []
+
+      // Fetch from favorite foods collection
+      const favoriteFoodsRef = collection(db, "users", user.uid, "favoriteFoods")
+      const favoriteQuery = query(favoriteFoodsRef, limit(5))
+      const favoriteSnapshot = await getDocs(favoriteQuery)
+
+      favoriteSnapshot.forEach((doc) => {
+        const data = doc.data()
+        favoriteItems.push({
+          id: doc.id,
+          name: data.name || "Unknown Food",
+          calories: data.calories || 0,
+          protein: data.protein || 0,
+          fat: data.fat || 0,
+          carbs: data.carbs || 0,
+          fiber: data.fiber || 0,
+          source: data.source || "custom",
+          category: data.category || "Favorite",
+          description: data.description || "",
+          servingSize: data.servingSize || "100g",
+          servingWeight: data.servingWeight || 100,
+          isFavorite: true,
+        })
+      })
+
+      setFavoriteFoods(favoriteItems)
+    } catch (error) {
+      console.error("Error fetching favorite foods:", error)
     }
   }
 
@@ -170,9 +193,12 @@ export function FoodSearch() {
               protein: data.nutrients?.protein || 0,
               fat: data.nutrients?.fat || 0,
               carbs: data.nutrients?.carbohydrates || 0,
+              fiber: data.nutrients?.fiber || 0,
               source: "ifct",
               category: data.category || "General",
               description: data.description || "",
+              servingSize: "100g",
+              servingWeight: 100,
             })
           }
         })
@@ -187,9 +213,12 @@ export function FoodSearch() {
             protein: data.nutrients?.protein || 0,
             fat: data.nutrients?.fat || 0,
             carbs: data.nutrients?.carbohydrates || 0,
+            fiber: data.nutrients?.fiber || 0,
             source: "ifct",
             category: data.category || "General",
             description: data.description || "",
+            servingSize: "100g",
+            servingWeight: 100,
           })
         })
       }
@@ -203,6 +232,8 @@ export function FoodSearch() {
 
   // Update the searchCustomFoods function to include recipes
   const searchCustomFoods = async (term: string): Promise<FoodItem[]> => {
+    if (!user) return []
+
     try {
       const results: FoodItem[] = []
 
@@ -228,9 +259,12 @@ export function FoodSearch() {
             protein: data.nutrients?.protein || data.nutritionalInfo?.protein || 0,
             fat: data.nutrients?.fat || data.nutritionalInfo?.fat || 0,
             carbs: data.nutrients?.carbohydrates || data.nutritionalInfo?.carbs || 0,
+            fiber: data.nutrients?.fiber || data.nutritionalInfo?.fiber || 0,
             source: "custom",
             category: data.category || data.foodCategory || "Custom",
             description: data.description || "",
+            servingSize: data.servingSize || "100g",
+            servingWeight: data.servingWeight || 100,
           })
         }
       })
@@ -257,9 +291,12 @@ export function FoodSearch() {
             protein: data.totalNutrition?.protein || 0,
             fat: data.totalNutrition?.fat || 0,
             carbs: data.totalNutrition?.carbs || 0,
+            fiber: data.totalNutrition?.fiber || 0,
             source: "recipe",
             category: data.category || "Recipe",
             description: data.description || "",
+            servingSize: data.servingSize || "1 serving",
+            servingWeight: data.servingWeight || 100,
           })
         }
       })
@@ -298,9 +335,12 @@ export function FoodSearch() {
             protein: data.totalNutrition?.protein || 0,
             fat: data.totalNutrition?.fat || 0,
             carbs: data.totalNutrition?.carbs || 0,
+            fiber: data.totalNutrition?.fiber || 0,
             source: "template",
             category: data.category || data.mealType || "Template",
             description: data.description || "",
+            servingSize: "1 serving",
+            servingWeight: data.servingWeight || 100,
           })
         }
       })
@@ -335,17 +375,21 @@ export function FoodSearch() {
         const protein = nutrients.find((n: any) => n.nutrientNumber === "203")?.value || 0
         const fat = nutrients.find((n: any) => n.nutrientNumber === "204")?.value || 0
         const carbs = nutrients.find((n: any) => n.nutrientNumber === "205")?.value || 0
+        const fiber = nutrients.find((n: any) => n.nutrientNumber === "291")?.value || 0
 
         return {
-          id: food.fdcId,
+          id: food.fdcId.toString(),
           name: food.description || "Unknown Food",
           calories,
           protein,
           fat,
           carbs,
+          fiber,
           source: "usda",
           category: food.foodCategory || "USDA",
           description: food.additionalDescriptions || "",
+          servingSize: "100g",
+          servingWeight: 100,
         }
       })
     } catch (error) {
@@ -401,6 +445,8 @@ export function FoodSearch() {
 
   // Add a function to search recipes
   const searchRecipes = async (term: string): Promise<FoodItem[]> => {
+    if (!user) return []
+
     try {
       const results: FoodItem[] = []
 
@@ -426,9 +472,12 @@ export function FoodSearch() {
             protein: data.totalNutrition?.protein || 0,
             fat: data.totalNutrition?.fat || 0,
             carbs: data.totalNutrition?.carbs || 0,
+            fiber: data.totalNutrition?.fiber || 0,
             source: "recipe",
             category: data.category || "Recipe",
             description: data.description || "",
+            servingSize: data.servingSize || "1 serving",
+            servingWeight: data.servingWeight || 100,
           })
         }
       })
@@ -519,10 +568,79 @@ export function FoodSearch() {
     if (activeTab === "ifct") return result.source === "ifct"
     if (activeTab === "usda") return result.source === "usda"
     if (activeTab === "custom") return result.source === "custom"
-    if (activeTab === "recipe") return result.source === "recipe"
+    if (activeTab === "recipes") return result.source === "recipe"
     if (activeTab === "templates") return result.source === "template"
     return false
   })
+
+  // Handle food selection
+  const handleFoodSelect = (food: FoodItem) => {
+    if (onSelectFood) {
+      onSelectFood(food)
+    }
+
+    // Add to recent foods if user is logged in
+    if (user) {
+      addToRecentFoods(food)
+    }
+  }
+
+  // Add food to recent foods
+  const addToRecentFoods = async (food: FoodItem) => {
+    if (!user) return
+
+    try {
+      // Add to recent foods collection
+      const recentFoodsRef = collection(db, "users", user.uid, "recentFoods")
+      await addDoc(recentFoodsRef, {
+        ...food,
+        timestamp: new Date(),
+      })
+
+      // Refresh recent foods
+      fetchRecentFoods()
+    } catch (error) {
+      console.error("Error adding to recent foods:", error)
+    }
+  }
+
+  // Toggle favorite status
+  const toggleFavorite = async (food: FoodItem) => {
+    if (!user) return
+
+    try {
+      if (food.isFavorite) {
+        // Remove from favorites
+        const favoriteFoodsRef = collection(db, "users", user.uid, "favoriteFoods")
+        const q = query(favoriteFoodsRef, where("id", "==", food.id), where("source", "==", food.source))
+        const querySnapshot = await getDocs(q)
+
+        querySnapshot.forEach(async (doc) => {
+          await doc.ref.delete()
+        })
+      } else {
+        // Add to favorites
+        const favoriteFoodsRef = collection(db, "users", user.uid, "favoriteFoods")
+        await addDoc(favoriteFoodsRef, {
+          ...food,
+          isFavorite: true,
+          timestamp: new Date(),
+        })
+      }
+
+      // Refresh favorites
+      fetchFavoriteFoods()
+
+      // Update search results
+      setSearchResults(
+        searchResults.map((item) =>
+          item.id === food.id && item.source === food.source ? { ...item, isFavorite: !item.isFavorite } : item,
+        ),
+      )
+    } catch (error) {
+      console.error("Error toggling favorite:", error)
+    }
+  }
 
   return (
     <Card className="card-gradient">
@@ -571,7 +689,7 @@ export function FoodSearch() {
                 <TabsTrigger value="custom" className="tab-trigger text-white">
                   Custom
                 </TabsTrigger>
-                <TabsTrigger value="recipe" className="tab-trigger text-white">
+                <TabsTrigger value="recipes" className="tab-trigger text-white">
                   Recipes
                 </TabsTrigger>
                 <TabsTrigger value="templates" className="tab-trigger text-white">
@@ -581,7 +699,12 @@ export function FoodSearch() {
               <TabsContent value="all" className="mt-4">
                 <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
                   {filteredResults.map((food) => (
-                    <FoodCard key={`${food.source}-${food.id}`} food={food} />
+                    <FoodCard
+                      key={`${food.source}-${food.id}`}
+                      food={food}
+                      onSelect={handleFoodSelect}
+                      onToggleFavorite={toggleFavorite}
+                    />
                   ))}
                 </div>
                 {filteredResults.length === 0 && (
@@ -591,7 +714,12 @@ export function FoodSearch() {
               <TabsContent value="ifct" className="mt-4">
                 <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
                   {filteredResults.map((food) => (
-                    <FoodCard key={`${food.source}-${food.id}`} food={food} />
+                    <FoodCard
+                      key={`${food.source}-${food.id}`}
+                      food={food}
+                      onSelect={handleFoodSelect}
+                      onToggleFavorite={toggleFavorite}
+                    />
                   ))}
                 </div>
                 {filteredResults.length === 0 && (
@@ -601,7 +729,12 @@ export function FoodSearch() {
               <TabsContent value="usda" className="mt-4">
                 <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
                   {filteredResults.map((food) => (
-                    <FoodCard key={`${food.source}-${food.id}`} food={food} />
+                    <FoodCard
+                      key={`${food.source}-${food.id}`}
+                      food={food}
+                      onSelect={handleFoodSelect}
+                      onToggleFavorite={toggleFavorite}
+                    />
                   ))}
                 </div>
                 {filteredResults.length === 0 && (
@@ -611,17 +744,27 @@ export function FoodSearch() {
               <TabsContent value="custom" className="mt-4">
                 <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
                   {filteredResults.map((food) => (
-                    <FoodCard key={`${food.source}-${food.id}`} food={food} />
+                    <FoodCard
+                      key={`${food.source}-${food.id}`}
+                      food={food}
+                      onSelect={handleFoodSelect}
+                      onToggleFavorite={toggleFavorite}
+                    />
                   ))}
                 </div>
                 {filteredResults.length === 0 && (
                   <div className="text-center py-8 text-gray-400">No results found in this category</div>
                 )}
               </TabsContent>
-              <TabsContent value="recipe" className="mt-4">
+              <TabsContent value="recipes" className="mt-4">
                 <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
                   {filteredResults.map((food) => (
-                    <FoodCard key={`${food.source}-${food.id}`} food={food} />
+                    <FoodCard
+                      key={`${food.source}-${food.id}`}
+                      food={food}
+                      onSelect={handleFoodSelect}
+                      onToggleFavorite={toggleFavorite}
+                    />
                   ))}
                 </div>
                 {filteredResults.length === 0 && (
@@ -631,7 +774,12 @@ export function FoodSearch() {
               <TabsContent value="templates" className="mt-4">
                 <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
                   {filteredResults.map((food) => (
-                    <FoodCard key={`${food.source}-${food.id}`} food={food} />
+                    <FoodCard
+                      key={`${food.source}-${food.id}`}
+                      food={food}
+                      onSelect={handleFoodSelect}
+                      onToggleFavorite={toggleFavorite}
+                    />
                   ))}
                 </div>
                 {filteredResults.length === 0 && (
@@ -643,15 +791,47 @@ export function FoodSearch() {
             <div className="text-center py-8 text-gray-400">No results found for "{searchTerm}"</div>
           ) : !searchTerm ? (
             <div className="space-y-4">
-              <h3 className="text-sm font-medium text-white">Recent Foods</h3>
-              <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-                {recentFoods.map((food) => (
-                  <FoodCard key={`${food.source}-${food.id}`} food={food} />
-                ))}
-              </div>
-              {recentFoods.length === 0 && !isSearching && (
+              {showRecent && recentFoods.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-medium text-white mb-2">Recent Foods</h3>
+                  <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+                    {recentFoods.map((food) => (
+                      <FoodCard
+                        key={`recent-${food.source}-${food.id}`}
+                        food={food}
+                        onSelect={handleFoodSelect}
+                        onToggleFavorite={toggleFavorite}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {showFavorites && favoriteFoods.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-medium text-white mb-2">Favorite Foods</h3>
+                  <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+                    {favoriteFoods.map((food) => (
+                      <FoodCard
+                        key={`favorite-${food.source}-${food.id}`}
+                        food={food}
+                        onSelect={handleFoodSelect}
+                        onToggleFavorite={toggleFavorite}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {!showRecent && !showFavorites && !isSearching && (
                 <div className="text-center py-8 text-gray-400">Enter a food item to search</div>
               )}
+
+              {showRecent &&
+                recentFoods.length === 0 &&
+                showFavorites &&
+                favoriteFoods.length === 0 &&
+                !isSearching && <div className="text-center py-8 text-gray-400">Enter a food item to search</div>}
             </div>
           ) : null}
         </div>
@@ -661,7 +841,13 @@ export function FoodSearch() {
 }
 
 // Food card component
-function FoodCard({ food }: { food: FoodItem }) {
+interface FoodCardProps {
+  food: FoodItem
+  onSelect: (food: FoodItem) => void
+  onToggleFavorite: (food: FoodItem) => void
+}
+
+function FoodCard({ food, onSelect, onToggleFavorite }: FoodCardProps) {
   // Determine background color based on source
   const getBgColor = (source: string) => {
     switch (source) {
@@ -765,6 +951,19 @@ function FoodCard({ food }: { food: FoodItem }) {
             <div className="text-sm text-gray-400">Carbs</div>
             <div className="font-medium text-white">{food.carbs} g</div>
           </div>
+        </div>
+        <div className="flex justify-between items-center mt-4">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => onToggleFavorite(food)}
+            className="text-gray-400 hover:text-yellow-400"
+          >
+            <Star className={`h-4 w-4 ${food.isFavorite ? "fill-yellow-400 text-yellow-400" : ""}`} />
+          </Button>
+          <Button size="sm" onClick={() => onSelect(food)} className="bg-orange-600 hover:bg-orange-700">
+            Select
+          </Button>
         </div>
       </CardContent>
     </Card>

@@ -1,13 +1,13 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useEffect } from "react"
+
+import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { useAuth } from "@/lib/use-auth"
-import { doc, getDoc } from "firebase/firestore"
-import { db } from "@/lib/firebase"
 
-export function BMICalculator() {
+export function BmiCalculator() {
   const { user, userData } = useAuth()
   const [bmi, setBmi] = useState<number | null>(null)
   const [bmiCategory, setBmiCategory] = useState<string>("")
@@ -24,28 +24,15 @@ export function BMICalculator() {
           return
         }
 
-        // Try to get user profile data
-        const userProfileRef = doc(db, "users", user.uid, "profile", "details")
-        const profileDoc = await getDoc(userProfileRef)
-
         let height = 0
         let weight = 0
         let gender = "male" // default
 
-        if (profileDoc.exists()) {
-          const profileData = profileDoc.data()
-          height = profileData.height || 0
-          weight = profileData.weight || 0
-          gender = profileData.gender || "male"
-
-          console.log("Profile data loaded:", { height, weight, gender })
-        } else if (userData) {
+        if (userData) {
           // Fallback to userData if profile doesn't exist
           height = userData.height || 0
           weight = userData.weight || 0
           gender = userData.gender || "male"
-
-          console.log("Using userData:", { height, weight, gender })
         }
 
         if (height > 0 && weight > 0) {
@@ -80,10 +67,7 @@ export function BMICalculator() {
 
           setBmiCategory(category)
           setBmiColor(color)
-
-          console.log("BMI calculated:", { bmi: roundedBMI, category, color })
         } else {
-          console.log("Missing height or weight data")
           setBmi(null)
           setBmiCategory("No data")
           setBmiColor("bg-gray-500")
@@ -113,10 +97,10 @@ export function BMICalculator() {
   }
 
   return (
-    <Card className="card-gradient">
-      <CardHeader className="card-header-gradient">
-        <CardTitle className="text-black">BMI Calculator</CardTitle>
-        <CardDescription className="text-black opacity-90">Body Mass Index</CardDescription>
+    <Card className="bg-white dark:bg-gray-900 shadow-md">
+      <CardHeader>
+        <CardTitle>BMI Calculator</CardTitle>
+        <CardDescription>Body Mass Index</CardDescription>
       </CardHeader>
       <CardContent className="pt-6">
         {loading ? (
@@ -124,18 +108,18 @@ export function BMICalculator() {
             <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-orange-500"></div>
           </div>
         ) : bmi === null ? (
-          <div className="text-center py-4 text-white">
+          <div className="text-center py-4 text-gray-500 dark:text-gray-400">
             <p>Please update your height and weight in your profile to calculate BMI.</p>
           </div>
         ) : (
           <div className="space-y-4">
             <div className="flex justify-between items-center">
-              <span className="text-white font-medium">Your BMI</span>
-              <span className="text-2xl font-bold text-white">{bmi}</span>
+              <span className="text-gray-700 dark:text-gray-100 font-medium">Your BMI</span>
+              <span className="text-2xl font-bold text-gray-700 dark:text-gray-100">{bmi}</span>
             </div>
 
             <div className="space-y-1">
-              <div className="flex justify-between text-sm text-white">
+              <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400">
                 <span>0</span>
                 <span>Underweight</span>
                 <span>Normal</span>
@@ -145,30 +129,30 @@ export function BMICalculator() {
               <Progress value={getBmiProgress()} className="h-3" indicatorClassName={bmiColor} />
             </div>
 
-            <div className="bg-gray-800 p-4 rounded-md">
+            <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-md">
               <div className="flex justify-between items-center">
-                <span className="text-white">Category:</span>
-                <span className="font-medium text-white">{bmiCategory}</span>
+                <span className="text-gray-700 dark:text-gray-300">Category:</span>
+                <span className="font-medium text-gray-700 dark:text-gray-300">{bmiCategory}</span>
               </div>
             </div>
 
-            <div className="text-sm text-gray-300">
+            <div className="text-sm text-gray-500 dark:text-gray-400">
               <p>BMI is calculated based on your height and weight.</p>
               <p className="mt-1">
                 <span className="text-blue-400">Underweight: </span>
-                <span className="text-white">Below 18.5</span>
+                <span>Below 18.5</span>
               </p>
               <p>
                 <span className="text-green-400">Normal weight: </span>
-                <span className="text-white">18.5 - 24.9</span>
+                <span>18.5 - 24.9</span>
               </p>
               <p>
                 <span className="text-yellow-400">Overweight: </span>
-                <span className="text-white">25 - 29.9</span>
+                <span>25 - 29.9</span>
               </p>
               <p>
                 <span className="text-red-400">Obese: </span>
-                <span className="text-white">30 or higher</span>
+                <span>30 or higher</span>
               </p>
             </div>
           </div>

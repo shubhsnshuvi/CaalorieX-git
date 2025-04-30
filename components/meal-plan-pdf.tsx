@@ -13,6 +13,7 @@ interface MealPlanPdfProps {
   dietPeriod: string
 }
 
+// The component is exported as MealPlanPdf (lowercase 'p' in "Pdf")
 export function MealPlanPdf({ mealPlan, dietPreference, dietGoal, calorieGoal, dietPeriod }: MealPlanPdfProps) {
   const [isGenerating, setIsGenerating] = useState(false)
 
