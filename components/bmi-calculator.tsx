@@ -1,18 +1,37 @@
 "use client"
 
-import { useEffect } from "react"
-
-import { useState } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { useState, useEffect } from "react"
 import { Progress } from "@/components/ui/progress"
 import { useAuth } from "@/lib/use-auth"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { doc, getDoc } from "firebase/firestore"
+import { db } from "@/lib/firebase"
 
-export function BmiCalculator() {
+interface BMICalculatorProps {
+  weight?: number
+  height?: number
+  gender?: string
+}
+
+export function BMICalculator({
+  weight: initialWeight,
+  height: initialHeight,
+  gender: initialGender,
+}: BMICalculatorProps) {
   const { user, userData } = useAuth()
   const [bmi, setBmi] = useState<number | null>(null)
   const [bmiCategory, setBmiCategory] = useState<string>("")
+  const [bmiStatus, setBmiStatus] = useState<string>("")
   const [bmiColor, setBmiColor] = useState<string>("bg-gray-500")
   const [loading, setLoading] = useState(true)
+
+  // Added state for manual input
+  const [weight, setWeight] = useState<number>(initialWeight || 70)
+  const [height, setHeight] = useState<number>(initialHeight || 170)
+  const [gender, setGender] = useState<string>(initialGender || "male")
 
   useEffect(() => {
     const calculateBMI = async () => {
@@ -20,58 +39,41 @@ export function BmiCalculator() {
 
       try {
         if (!user?.uid) {
+          // Use the props or default values if no user
+          if (initialHeight && initialWeight) {
+            calculateBMIValues(initialWeight, initialHeight, initialGender || "male")
+          }
           setLoading(false)
           return
         }
 
-        let height = 0
-        let weight = 0
-        let gender = "male" // default
+        // Try to get user profile data
+        const userProfileRef = doc(db, "users", user.uid, "profile", "details")
+        const profileDoc = await getDoc(userProfileRef)
 
-        if (userData) {
+        let heightValue = initialHeight || 0
+        let weightValue = initialWeight || 0
+        let genderValue = initialGender || "male"
+
+        if (profileDoc.exists()) {
+          const profileData = profileDoc.data()
+          heightValue = profileData.height || heightValue
+          weightValue = profileData.weight || weightValue
+          genderValue = profileData.gender || genderValue
+        } else if (userData) {
           // Fallback to userData if profile doesn't exist
-          height = userData.height || 0
-          weight = userData.weight || 0
-          gender = userData.gender || "male"
+          heightValue = userData.height || heightValue
+          weightValue = userData.weight || weightValue
+          genderValue = userData.gender || genderValue
         }
 
-        if (height > 0 && weight > 0) {
-          // Convert height from cm to meters
-          const heightInMeters = height / 100
+        // Update state with fetched values
+        setHeight(heightValue)
+        setWeight(weightValue)
+        setGender(genderValue)
 
-          // Calculate BMI: weight (kg) / (height (m) * height (m))
-          const calculatedBMI = weight / (heightInMeters * heightInMeters)
-
-          // Round to 1 decimal place
-          const roundedBMI = Math.round(calculatedBMI * 10) / 10
-
-          setBmi(roundedBMI)
-
-          // Determine BMI category and color
-          let category = ""
-          let color = ""
-
-          if (calculatedBMI < 18.5) {
-            category = "Underweight"
-            color = "bg-blue-500"
-          } else if (calculatedBMI >= 18.5 && calculatedBMI < 25) {
-            category = "Normal weight"
-            color = "bg-green-500"
-          } else if (calculatedBMI >= 25 && calculatedBMI < 30) {
-            category = "Overweight"
-            color = "bg-yellow-500"
-          } else {
-            category = "Obese"
-            color = "bg-red-500"
-          }
-
-          setBmiCategory(category)
-          setBmiColor(color)
-        } else {
-          setBmi(null)
-          setBmiCategory("No data")
-          setBmiColor("bg-gray-500")
-        }
+        // Calculate BMI with fetched values
+        calculateBMIValues(weightValue, heightValue, genderValue)
       } catch (error) {
         console.error("Error calculating BMI:", error)
         setBmi(null)
@@ -83,7 +85,60 @@ export function BmiCalculator() {
     }
 
     calculateBMI()
-  }, [user?.uid, userData])
+  }, [user?.uid, userData, initialHeight, initialWeight, initialGender])
+
+  // Function to calculate BMI values
+  const calculateBMIValues = (weightValue: number, heightValue: number, genderValue: string) => {
+    if (heightValue > 0 && weightValue > 0) {
+      // Convert height from cm to meters
+      const heightInMeters = heightValue / 100
+
+      // Calculate BMI: weight (kg) / (height (m) * height (m))
+      const calculatedBMI = weightValue / (heightInMeters * heightInMeters)
+
+      // Round to 1 decimal place
+      const roundedBMI = Math.round(calculatedBMI * 10) / 10
+
+      setBmi(roundedBMI)
+
+      // Determine BMI category and color
+      let category = ""
+      let status = ""
+      let color = ""
+
+      if (calculatedBMI < 18.5) {
+        category = "Underweight"
+        status = "You are underweight. Consider consulting with a nutritionist for a healthy weight gain plan."
+        color = "bg-blue-500"
+      } else if (calculatedBMI >= 18.5 && calculatedBMI < 25) {
+        category = "Normal weight"
+        status = "You have a healthy weight. Maintain your current lifestyle with balanced diet and regular exercise."
+        color = "bg-green-500"
+      } else if (calculatedBMI >= 25 && calculatedBMI < 30) {
+        category = "Overweight"
+        status = "You are overweight. Consider a moderate calorie deficit and increased physical activity."
+        color = "bg-yellow-500"
+      } else {
+        category = "Obese"
+        status = "You are in the obese category. It's recommended to consult with a healthcare professional."
+        color = "bg-red-500"
+      }
+
+      setBmiCategory(category)
+      setBmiStatus(status)
+      setBmiColor(color)
+    } else {
+      setBmi(null)
+      setBmiCategory("No data")
+      setBmiStatus("")
+      setBmiColor("bg-gray-500")
+    }
+  }
+
+  // Handle manual recalculation
+  const handleRecalculate = () => {
+    calculateBMIValues(weight, height, gender)
+  }
 
   // Calculate progress value for the BMI scale (0-40 scale)
   const getBmiProgress = () => {
@@ -97,29 +152,21 @@ export function BmiCalculator() {
   }
 
   return (
-    <Card className="bg-white dark:bg-gray-900 shadow-md">
-      <CardHeader>
-        <CardTitle>BMI Calculator</CardTitle>
-        <CardDescription>Body Mass Index</CardDescription>
-      </CardHeader>
-      <CardContent className="pt-6">
-        {loading ? (
-          <div className="flex justify-center py-4">
-            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-orange-500"></div>
-          </div>
-        ) : bmi === null ? (
-          <div className="text-center py-4 text-gray-500 dark:text-gray-400">
-            <p>Please update your height and weight in your profile to calculate BMI.</p>
-          </div>
-        ) : (
+    <div className="space-y-6">
+      {loading ? (
+        <div className="flex justify-center py-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-orange-500"></div>
+        </div>
+      ) : (
+        <>
           <div className="space-y-4">
             <div className="flex justify-between items-center">
-              <span className="text-gray-700 dark:text-gray-100 font-medium">Your BMI</span>
-              <span className="text-2xl font-bold text-gray-700 dark:text-gray-100">{bmi}</span>
+              <span className="text-white font-medium">Your BMI</span>
+              <span className="text-2xl font-bold text-white">{bmi !== null ? bmi : "N/A"}</span>
             </div>
 
             <div className="space-y-1">
-              <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400">
+              <div className="flex justify-between text-sm text-white">
                 <span>0</span>
                 <span>Underweight</span>
                 <span>Normal</span>
@@ -129,35 +176,89 @@ export function BmiCalculator() {
               <Progress value={getBmiProgress()} className="h-3" indicatorClassName={bmiColor} />
             </div>
 
-            <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-md">
+            <div className="bg-gray-800 p-4 rounded-md">
               <div className="flex justify-between items-center">
-                <span className="text-gray-700 dark:text-gray-300">Category:</span>
-                <span className="font-medium text-gray-700 dark:text-gray-300">{bmiCategory}</span>
+                <span className="text-white">Category:</span>
+                <span className="font-medium text-white">{bmiCategory}</span>
+              </div>
+              {bmiStatus && <p className="mt-2 text-sm text-gray-300">{bmiStatus}</p>}
+            </div>
+          </div>
+
+          {/* Manual BMI Calculator Section */}
+          <div className="mt-6 border-t border-gray-700 pt-6">
+            <h3 className="text-lg font-medium text-white mb-4">Calculate Your BMI</h3>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+              <div className="space-y-2">
+                <Label htmlFor="height" className="text-white">
+                  Height (cm)
+                </Label>
+                <Input
+                  id="height"
+                  type="number"
+                  value={height}
+                  onChange={(e) => setHeight(Number(e.target.value))}
+                  className="input-dark text-white"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="weight" className="text-white">
+                  Weight (kg)
+                </Label>
+                <Input
+                  id="weight"
+                  type="number"
+                  value={weight}
+                  onChange={(e) => setWeight(Number(e.target.value))}
+                  className="input-dark text-white"
+                />
               </div>
             </div>
 
-            <div className="text-sm text-gray-500 dark:text-gray-400">
-              <p>BMI is calculated based on your height and weight.</p>
-              <p className="mt-1">
-                <span className="text-blue-400">Underweight: </span>
-                <span>Below 18.5</span>
-              </p>
-              <p>
-                <span className="text-green-400">Normal weight: </span>
-                <span>18.5 - 24.9</span>
-              </p>
-              <p>
-                <span className="text-yellow-400">Overweight: </span>
-                <span>25 - 29.9</span>
-              </p>
-              <p>
-                <span className="text-red-400">Obese: </span>
-                <span>30 or higher</span>
-              </p>
+            <div className="space-y-2 mb-4">
+              <Label htmlFor="gender" className="text-white">
+                Gender
+              </Label>
+              <Select value={gender} onValueChange={setGender}>
+                <SelectTrigger id="gender" className="select-dark text-white">
+                  <SelectValue placeholder="Select gender" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="male">Male</SelectItem>
+                  <SelectItem value="female">Female</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
+
+            <Button onClick={handleRecalculate} className="button-orange w-full">
+              Calculate BMI
+            </Button>
           </div>
-        )}
-      </CardContent>
-    </Card>
+
+          <div className="text-sm text-gray-300">
+            <p>BMI is calculated based on your height and weight.</p>
+            <p className="mt-1">
+              <span className="text-blue-400">Underweight: </span>
+              <span className="text-white">Below 18.5</span>
+            </p>
+            <p>
+              <span className="text-green-400">Normal weight: </span>
+              <span className="text-white">18.5 - 24.9</span>
+            </p>
+            <p>
+              <span className="text-yellow-400">Overweight: </span>
+              <span className="text-white">25 - 29.9</span>
+            </p>
+            <p>
+              <span className="text-red-400">Obese: </span>
+              <span className="text-white">30 or higher</span>
+            </p>
+          </div>
+        </>
+      )}
+    </div>
   )
 }
