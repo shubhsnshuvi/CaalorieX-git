@@ -61,7 +61,8 @@
     "firebase": "latest",
     "fs": "latest",
     "path": "latest",
-    "jspdf": "latest"
+    "@react-pdf/renderer": "latest",
+    "firebase-admin": "latest"
   },
   "devDependencies": {
     "@types/node": "^22",

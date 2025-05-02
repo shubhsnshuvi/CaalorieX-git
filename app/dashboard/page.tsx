@@ -77,6 +77,23 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Personal Dietitian Card - Moved to the top */}
+      <Card className="card-gradient overflow-hidden border-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
+        <div className="h-2 bg-gradient-to-r from-orange-500 to-orange-600"></div>
+        <CardHeader>
+          <CardTitle className="flex items-center">
+            <div className="mr-3 p-2 rounded-full bg-orange-500/10">
+              <User2 className="h-5 w-5 text-orange-500" />
+            </div>
+            Your Personal Dietitian
+          </CardTitle>
+          <CardDescription>Get expert nutrition advice tailored to your needs</CardDescription>
+        </CardHeader>
+        <CardContent className="p-6">
+          <DietitianCard isPremium={userData?.subscription === "premium"} />
+        </CardContent>
+      </Card>
+
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="grid w-full grid-cols-3 sm:grid-cols-5 h-auto mb-8 p-1 bg-gray-800/80 backdrop-blur-sm sticky top-[65px] z-10 shadow-md rounded-xl overflow-x-auto">
           <TabsTrigger
@@ -247,14 +264,23 @@ export default function DashboardPage() {
               <CardHeader>
                 <CardTitle className="flex items-center">
                   <div className="mr-3 p-2 rounded-full bg-orange-500/10">
-                    <User2 className="h-5 w-5 text-orange-500" />
+                    <MessageSquare className="h-5 w-5 text-orange-500" />
                   </div>
-                  Personal Dietitian
+                  Nutrition Assistant
                 </CardTitle>
-                <CardDescription>Get expert nutrition advice</CardDescription>
+                <CardDescription>Get answers to your nutrition questions</CardDescription>
               </CardHeader>
               <CardContent className="p-6">
-                <DietitianCard />
+                <div className="text-center space-y-4">
+                  <div className="flex justify-center">
+                    <MessageSquare className="h-12 w-12 text-orange-500" />
+                  </div>
+                  <h3 className="text-xl font-medium">AI Nutrition Assistant</h3>
+                  <p className="text-muted-foreground">Chat with our AI to get personalized nutrition advice</p>
+                  <Button className="button-orange w-full" onClick={() => setActiveTab("chatbot")}>
+                    Start Chat
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           </div>
