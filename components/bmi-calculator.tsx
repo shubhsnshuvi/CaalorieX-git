@@ -179,11 +179,97 @@ export function BMICalculator({
             <div className="bg-gray-800 p-4 rounded-md">
               <div className="flex justify-between items-center">
                 <span className="text-white">Category:</span>
-                <span className="font-medium text-white">{bmiCategory}</span>
+                <span
+                  className={`font-medium ${
+                    bmiCategory === "Underweight"
+                      ? "text-blue-400"
+                      : bmiCategory === "Normal weight"
+                        ? "text-green-400"
+                        : bmiCategory === "Overweight"
+                          ? "text-yellow-400"
+                          : bmiCategory === "Obese"
+                            ? "text-red-400"
+                            : "text-white"
+                  }`}
+                >
+                  {bmiCategory}
+                </span>
               </div>
-              {bmiStatus && <p className="mt-2 text-sm text-gray-300">{bmiStatus}</p>}
+              {bmiStatus && (
+                <div className="mt-2">
+                  <div
+                    className={`text-sm p-2 rounded ${
+                      bmiCategory === "Underweight"
+                        ? "bg-blue-900/30 text-blue-200"
+                        : bmiCategory === "Normal weight"
+                          ? "bg-green-900/30 text-green-200"
+                          : bmiCategory === "Overweight"
+                            ? "bg-yellow-900/30 text-yellow-200"
+                            : bmiCategory === "Obese"
+                              ? "bg-red-900/30 text-red-200"
+                              : "text-gray-300"
+                    }`}
+                  >
+                    {bmiStatus}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
+
+          {bmi !== null && bmiCategory && (
+            <div className="mt-4 bg-gray-800 p-4 rounded-md">
+              <h4 className="font-medium text-white mb-2">Recommended Diet Goal</h4>
+              <div className="space-y-2">
+                {bmiCategory === "Underweight" && (
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                    <span className="text-white">
+                      Weight Gain - Focus on nutrient-dense foods to gain healthy weight
+                    </span>
+                  </div>
+                )}
+                {bmiCategory === "Normal weight" && (
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                    <span className="text-white">
+                      Weight Maintenance - Continue balanced diet to maintain your healthy weight
+                    </span>
+                  </div>
+                )}
+                {bmiCategory === "Overweight" && (
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+                    <span className="text-white">Weight Loss - Moderate calorie deficit with balanced nutrition</span>
+                  </div>
+                )}
+                {bmiCategory === "Obese" && (
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                    <span className="text-white">
+                      Weight Loss - Focus on sustainable weight loss with professional guidance
+                    </span>
+                  </div>
+                )}
+                <Button
+                  onClick={() => {
+                    // Navigate to meal plan generator with recommended goal
+                    const recommendedGoal =
+                      bmiCategory === "Underweight"
+                        ? "weight-gain"
+                        : bmiCategory === "Normal weight"
+                          ? "weight-maintenance"
+                          : "weight-loss"
+
+                    window.location.href = `/dashboard?tab=enhanced-meal-plan&goal=${recommendedGoal}`
+                  }}
+                  className="w-full mt-2 bg-orange-600 hover:bg-orange-700"
+                >
+                  Generate Meal Plan with This Goal
+                </Button>
+              </div>
+            </div>
+          )}
 
           {/* Manual BMI Calculator Section */}
           <div className="mt-6 border-t border-gray-700 pt-6">
