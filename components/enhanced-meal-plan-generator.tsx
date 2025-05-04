@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useToast } from "@/components/ui/use-toast"
-import { Loader2, RefreshCw } from 'lucide-react'
+import { Loader2, RefreshCw } from "lucide-react"
 import { db } from "@/lib/firebase"
 import { collection, addDoc, query, where, getDocs, Timestamp, orderBy, limit } from "firebase/firestore"
 import { useAuth } from "@/lib/use-auth"
@@ -56,7 +56,7 @@ export function EnhancedMealPlanGenerator({ userData }) {
   const searchParams = useSearchParams()
   const goalParam = searchParams?.get("goal")
   const [dietPreference, setDietPreference] = useState(userData?.dietPreference || "omnivore")
-  const [dietGoal, setDietGoal(goalParam || userData?.dietGoal || "weight-loss")] = useState(userData?.dietGoal || "weight-loss")
+  const [dietGoal, setDietGoal] = useState(goalParam || userData?.dietGoal || "weight-loss")
   const [calorieGoal, setCalorieGoal] = useState(userData?.targetCalories || 2000)
   const [dietPeriod, setDietPeriod] = useState("one-week")
   const [selectedMedicalConditions, setSelectedMedicalConditions] = useState<string[]>(
@@ -163,7 +163,7 @@ export function EnhancedMealPlanGenerator({ userData }) {
           variant: "destructive",
         })
         setIsGenerating(false)
-        
+
         // Redirect to the upgrade page
         window.location.href = "/dashboard/upgrade"
         return
@@ -243,7 +243,7 @@ export function EnhancedMealPlanGenerator({ userData }) {
         lunchFood = "Quinoa Salad with Roasted Vegetables"
         dinnerFood = "Lentil Curry with Brown Rice"
         snackFood = "Hummus with Vegetable Sticks"
-        
+
         // Add more variety for vegetarian options
         if (i % 2 === 0) {
           breakfastFood = "Greek Yogurt with Granola and Fresh Fruit"
