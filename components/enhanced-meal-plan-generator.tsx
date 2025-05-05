@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useToast } from "@/components/ui/use-toast"
-import { Loader2, RefreshCw, Info } from "lucide-react"
+import { Loader2, RefreshCw, Info, Calculator } from "lucide-react"
 import { db } from "@/lib/firebase"
 import { collection, addDoc, query, where, getDocs, Timestamp, orderBy, limit } from "firebase/firestore"
 import { useAuth } from "@/lib/use-auth"
@@ -91,11 +91,115 @@ export function EnhancedMealPlanGenerator({ userData }) {
   const [dietGoal, setDietGoal] = useState(goalParam || userData?.dietGoal || "weight-loss")
   const [calorieGoal, setCalorieGoal] = useState(userData?.targetCalories || 2000)
   const [dietPeriod, setDietPeriod] = useState("one-week")
+  const [goalWeight, setGoalWeight] = useState(
+    userData?.weight ? (userData.dietGoal === "weight-gain" ? userData.weight + 5 : userData.weight - 5) : 65,
+  )
   const [selectedMedicalConditions, setSelectedMedicalConditions] = useState<string[]>(
     userData?.medicalConditions || ["none"],
   )
   const [mealPlanHistory, setMealPlanHistory] = useState<any[]>([])
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
+
+  // Calculate daily calorie goal based on goal weight and timeframe
+  const calculateCalorieGoal = useCallback(() => {
+    if (!userData || !userData.weight || !goalWeight) return 2000
+
+    // Get user data
+    const currentWeight = userData.weight
+    const height = userData.height || 170
+    const age = userData.age || 30
+    const gender = userData.gender || "male"
+    const activityLevel = userData.activityLevel || "moderate"
+
+    // Calculate BMR (Basal Metabolic Rate) using Mifflin-St Jeor Equation
+    let bmr
+    if (gender === "male") {
+      bmr = 10 * currentWeight + 6.25 * height - 5 * age + 5
+    } else {
+      bmr = 10 * currentWeight + 6.25 * height - 5 * age - 161
+    }
+
+    // Apply activity multiplier
+    let tdee // Total Daily Energy Expenditure
+    switch (activityLevel) {
+      case "sedentary":
+        tdee = bmr * 1.2
+        break
+      case "light":
+        tdee = bmr * 1.375
+        break
+      case "moderate":
+        tdee = bmr * 1.55
+        break
+      case "active":
+        tdee = bmr * 1.725
+        break
+      case "very-active":
+        tdee = bmr * 1.9
+        break
+      default:
+        tdee = bmr * 1.55 // Default to moderate
+    }
+
+    // Calculate calorie adjustment based on goal
+    const weightDiff = currentWeight - goalWeight
+    const isWeightLoss = weightDiff > 0
+
+    // Convert diet period to days
+    let periodInDays
+    switch (dietPeriod) {
+      case "one-day":
+        periodInDays = 1
+        break
+      case "three-days":
+        periodInDays = 3
+        break
+      case "one-week":
+        periodInDays = 7
+        break
+      case "three-weeks":
+        periodInDays = 21
+        break
+      case "one-month":
+        periodInDays = 30
+        break
+      case "two-months":
+        periodInDays = 60
+        break
+      case "three-months":
+        periodInDays = 90
+        break
+      case "four-months":
+        periodInDays = 120
+        break
+      case "five-months":
+        periodInDays = 150
+        break
+      case "six-months":
+        periodInDays = 180
+        break
+      default:
+        periodInDays = 7
+    }
+
+    // For weight loss/gain: 1kg = ~7700 calories
+    // Safe weight loss/gain is about 0.5-1kg per week
+    const caloriesPerDay = (Math.abs(weightDiff) * 7700) / periodInDays
+
+    // Limit daily calorie deficit/surplus to safe levels
+    const maxDailyCalorieChange = 1000 // Max 1000 calorie deficit/surplus per day
+    const actualCalorieChange = Math.min(caloriesPerDay, maxDailyCalorieChange)
+
+    // Calculate target calories
+    let targetCalories
+    if (isWeightLoss) {
+      targetCalories = Math.max(1200, tdee - actualCalorieChange) // Minimum 1200 calories
+    } else {
+      targetCalories = tdee + actualCalorieChange
+    }
+
+    return Math.round(targetCalories)
+  }, [userData, goalWeight, dietPeriod])
 
   // Fetch meal plan history when component mounts
   useEffect(() => {
@@ -110,10 +214,36 @@ export function EnhancedMealPlanGenerator({ userData }) {
       setDietPreference(userData.dietPreference || "omnivore")
       // Use the goal from URL parameter if available, otherwise use from userData
       setDietGoal(goalParam || userData.dietGoal || "weight-loss")
-      setCalorieGoal(userData.targetCalories || 2000)
       setSelectedMedicalConditions(userData.medicalConditions || ["none"])
+
+      // Set initial goal weight based on current weight
+      if (userData.weight) {
+        // Default goal weight is 5kg less than current weight for weight loss, 5kg more for weight gain
+        setGoalWeight(userData.dietGoal === "weight-gain" ? userData.weight + 5 : userData.weight - 5)
+      }
     }
   }, [userData, goalParam])
+
+  // Update calorie goal when goal weight or diet period changes
+  useEffect(() => {
+    if (userData && goalWeight) {
+      const newCalorieGoal = calculateCalorieGoal()
+      setCalorieGoal(newCalorieGoal)
+    }
+  }, [userData, goalWeight, dietPeriod, calculateCalorieGoal])
+
+  // Update goal weight when diet goal changes
+  useEffect(() => {
+    if (userData && userData.weight) {
+      if (dietGoal === "weight-gain" || dietGoal === "muscle-gain") {
+        setGoalWeight(userData.weight + 5)
+      } else if (dietGoal === "weight-loss") {
+        setGoalWeight(userData.weight - 5)
+      } else {
+        setGoalWeight(userData.weight) // For maintenance
+      }
+    }
+  }, [dietGoal, userData])
 
   const fetchMealPlanHistory = async () => {
     if (!user) return
@@ -227,6 +357,7 @@ export function EnhancedMealPlanGenerator({ userData }) {
         dietGoal,
         calorieGoal,
         dietPeriod,
+        goalWeight,
         medicalConditions: selectedMedicalConditions,
         mealPlan: generatedMealPlan,
         createdAt: Timestamp.now(),
@@ -258,8 +389,47 @@ export function EnhancedMealPlanGenerator({ userData }) {
     period: string,
     medicalConditions: string[],
   ): MealPlan[] => {
-    const days = period === "one-day" ? 1 : period === "three-days" ? 3 : 7
+    // Convert period to number of days
+    let days
+    switch (period) {
+      case "one-day":
+        days = 1
+        break
+      case "three-days":
+        days = 3
+        break
+      case "one-week":
+        days = 7
+        break
+      case "three-weeks":
+        days = 21
+        break
+      case "one-month":
+        days = 30
+        break
+      case "two-months":
+        days = 60
+        break
+      case "three-months":
+        days = 90
+        break
+      case "four-months":
+        days = 120
+        break
+      case "five-months":
+        days = 150
+        break
+      case "six-months":
+        days = 180
+        break
+      default:
+        days = 7
+    }
+
+    // For longer periods, we'll generate a week of meals and repeat them
+    // with some variation to avoid monotony
     const mealPlan: MealPlan[] = []
+    const baseWeekDays = Math.min(days, 7)
 
     // Check if there are medical conditions to consider
     const hasMedicalConditions = !medicalConditions.includes("none")
@@ -1376,8 +1546,8 @@ export function EnhancedMealPlanGenerator({ userData }) {
         break
     }
 
-    // Generate meal plan for each day
-    for (let i = 0; i < days; i++) {
+    // Generate base week of meal plans
+    for (let i = 0; i < baseWeekDays; i++) {
       const dayName = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][i % 7]
 
       // Select meals for this day (ensuring variety by using the day index)
@@ -1547,6 +1717,36 @@ export function EnhancedMealPlanGenerator({ userData }) {
       mealPlan.push(dayMeals)
     }
 
+    // For periods longer than a week, repeat the base week with variations
+    if (days > 7) {
+      const baseWeek = [...mealPlan]
+
+      // Generate remaining weeks with variations
+      for (let week = 1; week < Math.ceil(days / 7); week++) {
+        for (let day = 0; day < 7 && mealPlan.length < days; day++) {
+          const baseDay = baseWeek[day]
+          const newDay = JSON.parse(JSON.stringify(baseDay)) // Deep clone
+
+          // Add some variation to meal names for variety
+          newDay.meals.forEach((meal: any, index: number) => {
+            // Add variation indicator to avoid monotony in longer plans
+            if (week % 2 === 0) {
+              meal.food = meal.food.includes("(Variation") ? meal.food : `${meal.food} (Variation ${week})`
+            }
+
+            // Slightly adjust calories and macros for variety
+            const variation = 0.95 + Math.random() * 0.1 // 0.95-1.05 multiplier
+            meal.calories = Math.round(meal.calories * variation)
+            meal.protein = Math.round(meal.protein * variation)
+            meal.carbs = Math.round(meal.carbs * variation)
+            meal.fat = Math.round(meal.fat * variation)
+          })
+
+          mealPlan.push(newDay)
+        }
+      }
+    }
+
     return mealPlan
   }
 
@@ -1556,6 +1756,9 @@ export function EnhancedMealPlanGenerator({ userData }) {
     setCalorieGoal(plan.calorieGoal || 2000)
     setDietPeriod(plan.dietPeriod || "one-week")
     setSelectedMedicalConditions(plan.medicalConditions || ["none"])
+    if (plan.goalWeight) {
+      setGoalWeight(plan.goalWeight)
+    }
     setMealPlan(plan.mealPlan || [])
 
     toast({
@@ -1620,6 +1823,21 @@ export function EnhancedMealPlanGenerator({ userData }) {
                     min={1200}
                     max={4000}
                   />
+                  <p className="text-xs text-muted-foreground">Auto-calculated based on your profile and goal weight</p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="goal-weight">Goal Weight (kg)</Label>
+                  <Input
+                    id="goal-weight"
+                    type="number"
+                    value={goalWeight}
+                    onChange={(e) => setGoalWeight(Number.parseInt(e.target.value) || 65)}
+                    min={40}
+                    max={200}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Your target weight to achieve within the selected diet period
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="diet-period">Diet Period</Label>
@@ -1631,8 +1849,44 @@ export function EnhancedMealPlanGenerator({ userData }) {
                       <SelectItem value="one-day">One Day</SelectItem>
                       <SelectItem value="three-days">Three Days</SelectItem>
                       <SelectItem value="one-week">One Week</SelectItem>
+                      <SelectItem value="three-weeks">Three Weeks</SelectItem>
+                      <SelectItem value="one-month">One Month</SelectItem>
+                      <SelectItem value="two-months">Two Months</SelectItem>
+                      <SelectItem value="three-months">Three Months</SelectItem>
+                      <SelectItem value="four-months">Four Months</SelectItem>
+                      <SelectItem value="five-months">Five Months</SelectItem>
+                      <SelectItem value="six-months">Six Months</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="weight-progress">Weight Progress</Label>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 px-2 text-xs"
+                      onClick={() => {
+                        const newCalorieGoal = calculateCalorieGoal()
+                        setCalorieGoal(newCalorieGoal)
+                        toast({
+                          title: "Calorie goal updated",
+                          description: `Calorie goal recalculated to ${newCalorieGoal} calories per day.`,
+                        })
+                      }}
+                    >
+                      <Calculator className="h-3.5 w-3.5 mr-1" />
+                      Recalculate
+                    </Button>
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    Current: <span className="font-medium">{userData?.weight || "N/A"} kg</span> → Goal:{" "}
+                    <span className="font-medium">{goalWeight} kg</span>
+                    <span className="ml-2">
+                      ({userData?.weight && goalWeight ? (userData.weight > goalWeight ? "-" : "+") : ""}
+                      {userData?.weight && goalWeight ? Math.abs(userData.weight - goalWeight).toFixed(1) : "?"} kg)
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -1708,6 +1962,7 @@ export function EnhancedMealPlanGenerator({ userData }) {
                           <div>
                             Meals: {plan.mealPlan?.reduce((acc: number, day: any) => acc + day.meals.length, 0) || 0}
                           </div>
+                          {plan.goalWeight && <div>Goal Weight: {plan.goalWeight} kg</div>}
                         </div>
                       </CardContent>
                     </Card>
