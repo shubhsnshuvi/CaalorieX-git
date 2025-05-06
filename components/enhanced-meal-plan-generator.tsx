@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useToast } from "@/components/ui/use-toast"
-import { Loader2, RefreshCw, Info } from "lucide-react"
+import { Loader2, RefreshCw, Info, Calculator } from "lucide-react"
 import { db } from "@/lib/firebase"
 import { collection, addDoc, query, where, getDocs, Timestamp, orderBy, limit } from "firebase/firestore"
 import { useAuth } from "@/lib/use-auth"
@@ -18,6 +18,7 @@ import { useSearchParams } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { getMealTemplates, type MealTemplate } from "@/lib/meal-templates-firestore"
+import { Progress } from "@/components/ui/progress"
 
 interface MealPlan {
   day: string
@@ -77,20 +78,30 @@ const dietTags = {
     color: "bg-violet-100 text-violet-800 dark:bg-violet-900 dark:text-violet-300",
   },
   indian: { label: "Indian", color: "bg-fuchsia-100 text-fuchsia-800 dark:bg-fuchsia-900 dark:text-fuchsia-300" },
-  "north-indian": {
-    label: "North Indian",
-    color: "bg-fuchsia-100 text-fuchsia-800 dark:bg-fuchsia-900 dark:text-fuchsia-300",
-  },
-  "south-indian": {
-    label: "South Indian",
-    color: "bg-fuchsia-100 text-fuchsia-800 dark:bg-fuchsia-900 dark:text-fuchsia-300",
-  },
   asian: { label: "Asian", color: "bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-300" },
   mexican: { label: "Mexican", color: "bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-300" },
 }
 
-// Cache for meal templates to avoid redundant Firestore queries
-const mealTemplateCache = new Map<string, MealTemplate[]>()
+// Extended diet periods
+const dietPeriods = [
+  { value: "one-day", label: "One Day" },
+  { value: "three-days", label: "Three Days" },
+  { value: "one-week", label: "One Week" },
+  { value: "two-weeks", label: "Two Weeks" },
+  { value: "one-month", label: "One Month" },
+  { value: "two-months", label: "Two Months" },
+  { value: "three-months", label: "Three Months" },
+  { value: "six-months", label: "Six Months" },
+]
+
+// Activity level multipliers for TDEE calculation
+const activityMultipliers = {
+  sedentary: 1.2, // Little or no exercise
+  light: 1.375, // Light exercise 1-3 days/week
+  moderate: 1.55, // Moderate exercise 3-5 days/week
+  active: 1.725, // Hard exercise 6-7 days/week
+  "very-active": 1.9, // Very hard exercise & physical job or 2x training
+}
 
 export function EnhancedMealPlanGenerator({ userData }) {
   const { user } = useAuth()
@@ -108,13 +119,18 @@ export function EnhancedMealPlanGenerator({ userData }) {
   )
   const [mealPlanHistory, setMealPlanHistory] = useState<any[]>([])
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
-  const [isLoadingTemplates, setIsLoadingTemplates] = useState(false)
   const [mealTemplates, setMealTemplates] = useState<{ [key: string]: MealTemplate[] }>({
     breakfast: [],
     lunch: [],
     dinner: [],
     snack: [],
   })
+
+  // New state variables for goal weight feature
+  const [goalWeight, setGoalWeight] = useState<number>(userData?.weight ? userData.weight - 5 : 65)
+  const [isCalculating, setIsCalculating] = useState(false)
+  const [weightDifference, setWeightDifference] = useState<number>(0)
+  const [weightProgress, setWeightProgress] = useState<number>(0)
 
   // Fetch meal plan history when component mounts
   useEffect(() => {
@@ -123,10 +139,10 @@ export function EnhancedMealPlanGenerator({ userData }) {
     }
   }, [user])
 
-  // Fetch meal templates when diet preference changes
+  // Fetch meal templates when component mounts
   useEffect(() => {
     if (dietPreference) {
-      fetchMealTemplates(dietPreference)
+      fetchMealTemplates()
     }
   }, [dietPreference])
 
@@ -138,97 +154,208 @@ export function EnhancedMealPlanGenerator({ userData }) {
       setDietGoal(goalParam || userData.dietGoal || "weight-loss")
       setCalorieGoal(userData.targetCalories || 2000)
       setSelectedMedicalConditions(userData.medicalConditions || ["none"])
+
+      // Set goal weight based on current weight
+      if (userData.weight) {
+        // Default goal weight is 5kg less than current weight for weight loss
+        // or 5kg more for weight gain
+        const defaultGoalWeight = userData.dietGoal === "weight-gain" ? userData.weight + 5 : userData.weight - 5
+        setGoalWeight(defaultGoalWeight)
+
+        // Calculate weight difference and progress
+        calculateWeightDifference(userData.weight, defaultGoalWeight)
+      }
+
+      // Calculate calorie goal based on profile data
+      if (userData.weight && userData.height && userData.age && userData.gender && userData.activityLevel) {
+        calculateCalorieGoal()
+      }
     }
   }, [userData, goalParam])
 
-  // Memoized function to fetch meal templates with caching
-  const fetchMealTemplates = useCallback(
-    async (preference: string) => {
-      setIsLoadingTemplates(true)
-      try {
-        // Check if we have cached templates for this preference
-        const cacheKey = `${preference}`
-        if (mealTemplateCache.has(cacheKey)) {
-          const cachedTemplates = mealTemplateCache.get(cacheKey)
-          if (cachedTemplates) {
-            // Group templates by meal type
-            const groupedTemplates = {
-              breakfast: cachedTemplates.filter((template) => template.mealType === "Breakfast"),
-              lunch: cachedTemplates.filter((template) => template.mealType === "Lunch"),
-              dinner: cachedTemplates.filter((template) => template.mealType === "Dinner"),
-              snack: cachedTemplates.filter((template) => template.mealType === "Snack"),
-            }
-            setMealTemplates(groupedTemplates)
-            setIsLoadingTemplates(false)
-            return
-          }
-        }
+  // Recalculate calorie goal when relevant factors change
+  useEffect(() => {
+    if (userData?.weight && goalWeight && dietPeriod && dietGoal) {
+      calculateCalorieGoal()
+    }
+  }, [goalWeight, dietPeriod, dietGoal])
 
-        // If not cached, fetch from Firestore
-        const allTemplates: MealTemplate[] = []
+  // Calculate weight difference and progress percentage
+  const calculateWeightDifference = (currentWeight: number, targetWeight: number) => {
+    const difference = currentWeight - targetWeight
+    setWeightDifference(difference)
 
-        // Determine diet preferences to query
-        let dietPreferences = [preference]
-        if (preference === "indian-vegetarian") {
-          // For Indian vegetarian, also include regular vegetarian templates
-          dietPreferences = ["indian-vegetarian", "vegetarian"]
-        }
+    // Calculate progress as percentage (how close to goal)
+    // For weight loss: if current > target, progress is 0-100%
+    // For weight gain: if current < target, progress is 0-100%
+    if (dietGoal === "weight-loss") {
+      // For weight loss, starting weight is 0% progress, goal weight is 100%
+      const startingGap = userData.weight - targetWeight
+      const currentGap = currentWeight - targetWeight
+      const progress = startingGap > 0 ? ((startingGap - currentGap) / startingGap) * 100 : 0
+      setWeightProgress(Math.max(0, Math.min(100, progress)))
+    } else if (dietGoal === "weight-gain") {
+      // For weight gain, starting weight is 0% progress, goal weight is 100%
+      const startingGap = targetWeight - userData.weight
+      const currentGap = targetWeight - currentWeight
+      const progress = startingGap > 0 ? ((startingGap - currentGap) / startingGap) * 100 : 0
+      setWeightProgress(Math.max(0, Math.min(100, progress)))
+    } else {
+      // For maintenance, progress is 100% if within 1kg of target
+      const progress = Math.abs(difference) <= 1 ? 100 : 0
+      setWeightProgress(progress)
+    }
+  }
 
-        // Fetch breakfast templates
-        const breakfastTemplates = await getMealTemplates({
-          mealType: "Breakfast",
-          dietPreference: dietPreferences,
-          limitCount: 30,
-        })
-        allTemplates.push(...breakfastTemplates)
+  // Calculate appropriate calorie goal based on user data and goals
+  const calculateCalorieGoal = () => {
+    setIsCalculating(true)
 
-        // Fetch lunch templates
-        const lunchTemplates = await getMealTemplates({
-          mealType: "Lunch",
-          dietPreference: dietPreferences,
-          limitCount: 30,
-        })
-        allTemplates.push(...lunchTemplates)
-
-        // Fetch dinner templates
-        const dinnerTemplates = await getMealTemplates({
-          mealType: "Dinner",
-          dietPreference: dietPreferences,
-          limitCount: 30,
-        })
-        allTemplates.push(...dinnerTemplates)
-
-        // Fetch snack templates
-        const snackTemplates = await getMealTemplates({
-          mealType: "Snack",
-          dietPreference: dietPreferences,
-          limitCount: 30,
-        })
-        allTemplates.push(...snackTemplates)
-
-        // Cache the templates
-        mealTemplateCache.set(cacheKey, allTemplates)
-
-        // Group templates by meal type
-        setMealTemplates({
-          breakfast: breakfastTemplates,
-          lunch: lunchTemplates,
-          dinner: dinnerTemplates,
-          snack: snackTemplates,
-        })
-      } catch (error) {
-        console.error("Error fetching meal templates:", error)
+    try {
+      if (!userData.weight || !userData.height || !userData.age || !userData.gender) {
         toast({
-          title: "Error",
-          description: "Failed to fetch meal templates. Using default options.",
+          title: "Missing profile data",
+          description: "Please complete your profile with weight, height, age, and gender information.",
           variant: "destructive",
         })
-      } finally {
-        setIsLoadingTemplates(false)
+        return
       }
-    },
-    [toast],
-  )
+
+      // Calculate BMR using Mifflin-St Jeor Equation
+      let bmr
+      if (userData.gender === "male") {
+        bmr = 10 * userData.weight + 6.25 * userData.height - 5 * userData.age + 5
+      } else {
+        bmr = 10 * userData.weight + 6.25 * userData.height - 5 * userData.age - 161
+      }
+
+      // Calculate TDEE (Total Daily Energy Expenditure)
+      const activityLevel = userData.activityLevel || "moderate"
+      const tdee = Math.round(bmr * activityMultipliers[activityLevel])
+
+      // Calculate daily calorie adjustment based on weight goal and time period
+      let dailyCalorieAdjustment = 0
+
+      if (dietGoal === "weight-loss" || dietGoal === "weight-gain") {
+        // Calculate weight difference
+        const weightDiff = Math.abs(userData.weight - goalWeight)
+
+        // Convert diet period to days
+        let periodInDays
+        switch (dietPeriod) {
+          case "one-day":
+            periodInDays = 1
+            break
+          case "three-days":
+            periodInDays = 3
+            break
+          case "one-week":
+            periodInDays = 7
+            break
+          case "two-weeks":
+            periodInDays = 14
+            break
+          case "one-month":
+            periodInDays = 30
+            break
+          case "two-months":
+            periodInDays = 60
+            break
+          case "three-months":
+            periodInDays = 90
+            break
+          case "six-months":
+            periodInDays = 180
+            break
+          default:
+            periodInDays = 30
+        }
+
+        // 1kg of fat is approximately 7700 calories
+        // Calculate daily calorie deficit/surplus needed
+        const totalCalorieAdjustment = weightDiff * 7700
+        dailyCalorieAdjustment = Math.round(totalCalorieAdjustment / periodInDays)
+
+        // Cap the adjustment to reasonable limits for health
+        dailyCalorieAdjustment = Math.min(dailyCalorieAdjustment, 1000)
+      }
+
+      // Calculate final calorie goal
+      let calculatedCalorieGoal
+
+      if (dietGoal === "weight-loss") {
+        calculatedCalorieGoal = tdee - dailyCalorieAdjustment
+        // Ensure minimum healthy calorie intake
+        calculatedCalorieGoal = Math.max(calculatedCalorieGoal, userData.gender === "male" ? 1500 : 1200)
+      } else if (dietGoal === "weight-gain" || dietGoal === "muscle-gain") {
+        calculatedCalorieGoal = tdee + dailyCalorieAdjustment
+      } else {
+        // For maintenance
+        calculatedCalorieGoal = tdee
+      }
+
+      // Round to nearest 50 calories for simplicity
+      calculatedCalorieGoal = Math.round(calculatedCalorieGoal / 50) * 50
+
+      // Update calorie goal
+      setCalorieGoal(calculatedCalorieGoal)
+
+      toast({
+        title: "Calorie goal updated",
+        description: `Your daily calorie goal has been set to ${calculatedCalorieGoal} calories.`,
+      })
+    } catch (error) {
+      console.error("Error calculating calorie goal:", error)
+      toast({
+        title: "Calculation error",
+        description: "There was an error calculating your calorie goal. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsCalculating(false)
+    }
+  }
+
+  const fetchMealTemplates = async () => {
+    try {
+      // Fetch breakfast templates
+      const breakfastTemplates = await getMealTemplates({
+        mealType: "Breakfast",
+        dietPreference: dietPreference,
+        limitCount: 20,
+      })
+
+      // Fetch lunch templates
+      const lunchTemplates = await getMealTemplates({
+        mealType: "Lunch",
+        dietPreference: dietPreference,
+        limitCount: 20,
+      })
+
+      // Fetch dinner templates
+      const dinnerTemplates = await getMealTemplates({
+        mealType: "Dinner",
+        dietPreference: dietPreference,
+        limitCount: 20,
+      })
+
+      // Fetch snack templates
+      const snackTemplates = await getMealTemplates({
+        mealType: "Snack",
+        dietPreference: dietPreference,
+        limitCount: 20,
+      })
+
+      setMealTemplates({
+        breakfast: breakfastTemplates,
+        lunch: lunchTemplates,
+        dinner: dinnerTemplates,
+        snack: snackTemplates,
+      })
+    } catch (error) {
+      console.error("Error fetching meal templates:", error)
+    }
+  }
 
   const fetchMealPlanHistory = async () => {
     if (!user) return
@@ -345,6 +472,7 @@ export function EnhancedMealPlanGenerator({ userData }) {
         medicalConditions: selectedMedicalConditions,
         mealPlan: generatedMealPlan,
         createdAt: Timestamp.now(),
+        goalWeight: goalWeight || null,
       })
 
       // Refresh the meal plan history
@@ -373,14 +501,34 @@ export function EnhancedMealPlanGenerator({ userData }) {
     period: string,
     medicalConditions: string[],
   ): MealPlan[] => {
-    const days = period === "one-day" ? 1 : period === "three-days" ? 3 : 7
+    const days =
+      period === "one-day"
+        ? 1
+        : period === "three-days"
+          ? 3
+          : period === "one-week"
+            ? 7
+            : period === "two-weeks"
+              ? 14
+              : period === "one-month"
+                ? 30
+                : period === "two-months"
+                  ? 60
+                  : period === "three-months"
+                    ? 90
+                    : period === "six-months"
+                      ? 180
+                      : 7
     const mealPlan: MealPlan[] = []
 
     // Check if there are medical conditions to consider
     const hasMedicalConditions = !medicalConditions.includes("none")
 
     // Generate meal plan for each day
-    for (let i = 0; i < days; i++) {
+    // For longer periods, we'll generate a week of meals and repeat them
+    const uniqueDays = Math.min(days, 7)
+
+    for (let i = 0; i < uniqueDays; i++) {
       const dayName = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][i % 7]
 
       // Select meals for this day (ensuring variety by using the day index)
@@ -389,7 +537,6 @@ export function EnhancedMealPlanGenerator({ userData }) {
 
       // For breakfast
       if (mealTemplates.breakfast.length > 0) {
-        // Get a different breakfast for each day to ensure variety
         breakfast = mealTemplates.breakfast[i % mealTemplates.breakfast.length]
       } else {
         // Fallback to default breakfast options
@@ -399,25 +546,7 @@ export function EnhancedMealPlanGenerator({ userData }) {
 
       // For lunch
       if (mealTemplates.lunch.length > 0) {
-        // For Indian vegetarian, ensure lunch includes Roti, Sabji, Daal, and Rice
-        if (preference === "indian-vegetarian") {
-          const indianLunches = mealTemplates.lunch.filter(
-            (meal) =>
-              meal.name.toLowerCase().includes("roti") ||
-              meal.name.toLowerCase().includes("dal") ||
-              meal.name.toLowerCase().includes("rice") ||
-              meal.name.toLowerCase().includes("sabji") ||
-              meal.name.toLowerCase().includes("thali"),
-          )
-
-          if (indianLunches.length > 0) {
-            lunch = indianLunches[i % indianLunches.length]
-          } else {
-            lunch = mealTemplates.lunch[i % mealTemplates.lunch.length]
-          }
-        } else {
-          lunch = mealTemplates.lunch[i % mealTemplates.lunch.length]
-        }
+        lunch = mealTemplates.lunch[i % mealTemplates.lunch.length]
       } else {
         // Fallback to default lunch options
         const defaultLunches = getDefaultMeals(preference, "lunch")
@@ -426,24 +555,7 @@ export function EnhancedMealPlanGenerator({ userData }) {
 
       // For dinner
       if (mealTemplates.dinner.length > 0) {
-        // For Indian vegetarian, ensure dinner includes Roti and Sabji (lighter than lunch)
-        if (preference === "indian-vegetarian") {
-          const indianDinners = mealTemplates.dinner.filter(
-            (meal) =>
-              meal.name.toLowerCase().includes("roti") ||
-              meal.name.toLowerCase().includes("sabji") ||
-              meal.name.toLowerCase().includes("dal") ||
-              meal.name.toLowerCase().includes("thali"),
-          )
-
-          if (indianDinners.length > 0) {
-            dinner = indianDinners[i % indianDinners.length]
-          } else {
-            dinner = mealTemplates.dinner[i % mealTemplates.dinner.length]
-          }
-        } else {
-          dinner = mealTemplates.dinner[i % mealTemplates.dinner.length]
-        }
+        dinner = mealTemplates.dinner[i % mealTemplates.dinner.length]
       } else {
         // Fallback to default dinner options
         const defaultDinners = getDefaultMeals(preference, "dinner")
@@ -547,17 +659,11 @@ export function EnhancedMealPlanGenerator({ userData }) {
         case "weight-loss":
           carbMultiplier = 0.8
           fatMultiplier = 0.9
-          proteinMultiplier = 1.1
           break
         case "weight-gain":
+        case "muscle-gain":
           proteinMultiplier = 1.3
           carbMultiplier = 1.2
-          fatMultiplier = 1.1
-          break
-        case "muscle-gain":
-          proteinMultiplier = 1.5
-          carbMultiplier = 1.2
-          fatMultiplier = 1.0
           break
         case "keto":
           proteinMultiplier = 1.1
@@ -572,52 +678,6 @@ export function EnhancedMealPlanGenerator({ userData }) {
       const dinnerCalories = Math.round(calories * 0.3)
       const snackCalories = Math.round(calories * 0.1)
 
-      // Adjust quantities based on diet goal
-      let breakfastQuantity = breakfast.quantity || getDefaultQuantity("breakfast")
-      let lunchQuantity = lunch.quantity || getDefaultQuantity("lunch")
-      let dinnerQuantity = dinner.quantity || getDefaultQuantity("dinner")
-      const snackQuantity = snack.quantity || getDefaultQuantity("snack")
-
-      // For weight loss, reduce portions
-      if (goal === "weight-loss") {
-        if (preference === "indian-vegetarian") {
-          // Adjust Indian meal quantities for weight loss
-          if (breakfast.name.toLowerCase().includes("paratha")) {
-            breakfastQuantity = "1 paratha, 1/4 cup curd"
-          } else if (breakfast.name.toLowerCase().includes("poha") || breakfast.name.toLowerCase().includes("upma")) {
-            breakfastQuantity = "3/4 cup"
-          }
-
-          if (lunch.name.toLowerCase().includes("roti") && lunch.name.toLowerCase().includes("rice")) {
-            lunchQuantity = "1 roti, 1/4 cup rice, 1/2 cup dal, 1/2 cup sabji"
-          }
-
-          if (dinner.name.toLowerCase().includes("roti")) {
-            dinnerQuantity = "1 roti, 1/2 cup sabji, 1/2 cup dal"
-          }
-        }
-      }
-
-      // For weight gain, increase portions
-      if (goal === "weight-gain" || goal === "muscle-gain") {
-        if (preference === "indian-vegetarian") {
-          // Adjust Indian meal quantities for weight gain
-          if (breakfast.name.toLowerCase().includes("paratha")) {
-            breakfastQuantity = "2-3 parathas, 1/2 cup curd"
-          } else if (breakfast.name.toLowerCase().includes("poha") || breakfast.name.toLowerCase().includes("upma")) {
-            breakfastQuantity = "1.5 cups"
-          }
-
-          if (lunch.name.toLowerCase().includes("roti") && lunch.name.toLowerCase().includes("rice")) {
-            lunchQuantity = "3 rotis, 3/4 cup rice, 3/4 cup dal, 3/4 cup sabji"
-          }
-
-          if (dinner.name.toLowerCase().includes("roti")) {
-            dinnerQuantity = "2-3 rotis, 3/4 cup sabji, 3/4 cup dal"
-          }
-        }
-      }
-
       // Create the day's meal plan
       const dayMeals = {
         day: dayName,
@@ -626,7 +686,7 @@ export function EnhancedMealPlanGenerator({ userData }) {
             meal: "Breakfast",
             time: "8:00 AM",
             food: breakfast.name,
-            quantity: breakfastQuantity,
+            quantity: breakfast.quantity || getDefaultQuantity("breakfast"),
             calories: breakfast.calories || breakfastCalories,
             protein: breakfast.protein || Math.round((breakfastCalories * 0.3 * proteinMultiplier) / 4),
             carbs: breakfast.carbs || Math.round((breakfastCalories * 0.4 * carbMultiplier) / 4),
@@ -640,7 +700,7 @@ export function EnhancedMealPlanGenerator({ userData }) {
             meal: "Lunch",
             time: "12:30 PM",
             food: lunch.name,
-            quantity: lunchQuantity,
+            quantity: lunch.quantity || getDefaultQuantity("lunch"),
             calories: lunch.calories || lunchCalories,
             protein: lunch.protein || Math.round((lunchCalories * 0.3 * proteinMultiplier) / 4),
             carbs: lunch.carbs || Math.round((lunchCalories * 0.4 * carbMultiplier) / 4),
@@ -654,7 +714,7 @@ export function EnhancedMealPlanGenerator({ userData }) {
             meal: "Dinner",
             time: "7:00 PM",
             food: dinner.name,
-            quantity: dinnerQuantity,
+            quantity: dinner.quantity || getDefaultQuantity("dinner"),
             calories: dinner.calories || dinnerCalories,
             protein: dinner.protein || Math.round((dinnerCalories * 0.3 * proteinMultiplier) / 4),
             carbs: dinner.carbs || Math.round((dinnerCalories * 0.4 * carbMultiplier) / 4),
@@ -668,10 +728,9 @@ export function EnhancedMealPlanGenerator({ userData }) {
             meal: "Snack",
             time: "4:00 PM",
             food: snack.name,
-            quantity: snackQuantity,
+            quantity: snack.quantity || getDefaultQuantity("snack"),
             calories: snack.calories || snackCalories,
             protein: snack.protein || Math.round((snackCalories * 0.3 * proteinMultiplier) / 4),
-            carbs: snack.carbs || Math.round((snackCalories * 0.4 * carbMultiplier) / 4),
             carbs: snack.carbs || Math.round((snackCalories * 0.4 * carbMultiplier) / 4),
             fat: snack.fat || Math.round((snackCalories * 0.3 * fatMultiplier) / 9),
             tags: snack.tags || [],
@@ -782,22 +841,13 @@ export function EnhancedMealPlanGenerator({ userData }) {
             "Mix besan with water to make smooth batter, add chopped vegetables and spices. Make thin pancakes on a hot griddle. Serve with curd.",
         },
         {
-          name: "Aloo Paratha with Curd",
-          quantity: "2 parathas, 1/2 cup curd",
-          tags: ["vegetarian", "indian-vegetarian", "north-indian"],
-          description: "Whole wheat flatbread stuffed with spiced potato filling, served with yogurt.",
-          ingredients: [
-            "Whole wheat flour",
-            "Potatoes",
-            "Green chilies",
-            "Coriander leaves",
-            "Cumin powder",
-            "Garam masala",
-            "Ghee",
-            "Curd",
-          ],
+          name: "Oats Idli with Sambar",
+          quantity: "4 idlis, 1/2 cup sambar",
+          tags: ["vegetarian", "indian-vegetarian", "high-fiber"],
+          description: "A healthy twist to traditional idli made with oats and served with sambar.",
+          ingredients: ["Oats", "Semolina", "Curd", "Carrot", "Green peas", "Mustard seeds", "Curry leaves", "Sambar"],
           preparation:
-            "Boil and mash potatoes, mix with spices. Make dough with wheat flour, stuff with potato mixture, roll into flatbreads. Cook on hot griddle with ghee until golden brown. Serve with curd.",
+            "Dry roast oats, mix with semolina, curd, and vegetables. Steam in idli molds. Serve with sambar.",
         },
       ],
       lunch: [
@@ -821,7 +871,7 @@ export function EnhancedMealPlanGenerator({ userData }) {
         {
           name: "Chole Bhature with Pickle and Onions",
           quantity: "1/2 cup chole, 2 bhature, salad",
-          tags: ["vegetarian", "indian-vegetarian", "high-protein", "north-indian"],
+          tags: ["vegetarian", "indian-vegetarian", "high-protein"],
           description: "Spicy chickpea curry served with fried bread, pickle, and onion salad.",
           ingredients: ["Chickpeas", "All-purpose flour", "Onion", "Tomato", "Spices", "Pickle", "Onion salad"],
           preparation:
@@ -830,7 +880,7 @@ export function EnhancedMealPlanGenerator({ userData }) {
         {
           name: "Palak Paneer with Roti and Jeera Rice",
           quantity: "1/2 cup palak paneer, 2 rotis, 1/2 cup rice",
-          tags: ["vegetarian", "indian-vegetarian", "high-protein", "north-indian"],
+          tags: ["vegetarian", "indian-vegetarian", "high-protein"],
           description: "Cottage cheese cubes in spinach gravy served with whole wheat flatbread and cumin rice.",
           ingredients: [
             "Spinach",
@@ -843,6 +893,15 @@ export function EnhancedMealPlanGenerator({ userData }) {
           ],
           preparation:
             "Blanch spinach, blend, cook with spices. Add paneer cubes. Make rotis. Prepare jeera rice with cumin tempering.",
+        },
+        {
+          name: "Dal Khichdi with Kadhi and Papad",
+          quantity: "1 cup khichdi, 1/2 cup kadhi, 1 papad",
+          tags: ["vegetarian", "indian-vegetarian", "easy-digestion"],
+          description: "A comforting one-pot meal of rice and lentils served with yogurt curry and crispy papad.",
+          ingredients: ["Rice", "Moong dal", "Yogurt", "Gram flour (besan)", "Spices", "Ghee", "Papad"],
+          preparation:
+            "Cook rice and dal together with spices. Prepare kadhi by cooking besan and yogurt mixture with spices. Roast papad.",
         },
       ],
       dinner: [
@@ -871,6 +930,33 @@ export function EnhancedMealPlanGenerator({ userData }) {
           ingredients: ["Rice", "Urad dal", "Potato", "Onion", "Spices", "Coconut", "Toor dal"],
           preparation:
             "Ferment rice and dal batter, make thin crepes. Prepare potato filling with spices. Serve with sambar and coconut chutney.",
+        },
+        {
+          name: "Paneer Butter Masala with Roti and Jeera Rice",
+          quantity: "1/2 cup curry, 2 rotis, 1/2 cup rice",
+          tags: ["vegetarian", "indian-vegetarian", "rich"],
+          description: "Cottage cheese cubes in rich tomato gravy served with whole wheat flatbread and cumin rice.",
+          ingredients: [
+            "Cottage cheese (paneer)",
+            "Tomato",
+            "Cream",
+            "Butter",
+            "Spices",
+            "Whole wheat flour",
+            "Rice",
+            "Cumin seeds",
+          ],
+          preparation:
+            "Cook tomato gravy with spices, add paneer and cream. Make rotis. Prepare jeera rice with cumin tempering.",
+        },
+        {
+          name: "Vegetable Khichdi with Kadhi",
+          quantity: "1 cup khichdi, 1/2 cup kadhi",
+          tags: ["vegetarian", "indian-vegetarian", "easy-digestion"],
+          description: "A light and digestible one-pot meal of rice, lentils, and vegetables served with yogurt curry.",
+          ingredients: ["Rice", "Moong dal", "Mixed vegetables", "Yogurt", "Gram flour (besan)", "Spices", "Ghee"],
+          preparation:
+            "Cook rice, dal, and vegetables together with spices. Prepare kadhi by cooking besan and yogurt mixture with spices.",
         },
       ],
       snack: [
@@ -925,6 +1011,23 @@ export function EnhancedMealPlanGenerator({ userData }) {
           ingredients: ["Foxnuts (makhana)", "Ghee", "Rock salt", "Black pepper"],
           preparation: "Roast makhana in ghee until crispy, sprinkle with rock salt and black pepper.",
         },
+        {
+          name: "Vegetable Cutlet with Mint Chutney",
+          quantity: "2 cutlets, 1 tbsp chutney",
+          tags: ["vegetarian", "indian-vegetarian", "evening-snack"],
+          description: "Crispy patties made with mixed vegetables and spices, served with mint chutney.",
+          ingredients: [
+            "Potato",
+            "Mixed vegetables",
+            "Bread crumbs",
+            "Spices",
+            "Mint",
+            "Coriander leaves",
+            "Green chilies",
+          ],
+          preparation:
+            "Mash boiled vegetables with spices, shape into patties, coat with bread crumbs, shallow fry. Serve with mint chutney.",
+        },
       ],
     }
 
@@ -947,6 +1050,76 @@ export function EnhancedMealPlanGenerator({ userData }) {
           description: "A nutrient-dense breakfast rich in protein, iron, and calcium.",
           ingredients: ["Eggs", "Fresh spinach", "Feta cheese", "Olive oil", "Whole grain bread", "Avocado (optional)"],
           preparation: "Sauté spinach, whisk eggs, pour over spinach, add feta, fold when set. Serve with toast.",
+        },
+        {
+          name: "Overnight Oats with Almond Butter and Banana",
+          quantity: "1/2 cup oats, 1 tbsp almond butter, 1 banana",
+          tags: ["vegetarian", "high-fiber", "heart-healthy"],
+          description: "A fiber-rich breakfast that provides sustained energy throughout the morning.",
+          ingredients: ["Rolled oats", "Almond milk", "Almond butter", "Banana", "Cinnamon", "Maple syrup"],
+          preparation: "Mix oats and milk, refrigerate overnight. Top with almond butter, sliced banana, and cinnamon.",
+        },
+        {
+          name: "Avocado Toast with Poached Eggs",
+          quantity: "2 slices bread, 1/2 avocado, 2 eggs",
+          tags: ["vegetarian", "high-protein", "heart-healthy"],
+          description: "A balanced breakfast with healthy fats, protein, and complex carbohydrates.",
+          ingredients: ["Whole grain bread", "Avocado", "Eggs", "Cherry tomatoes", "Microgreens", "Red pepper flakes"],
+          preparation: "Toast bread, spread mashed avocado, top with poached eggs, tomatoes, and seasonings.",
+        },
+        {
+          name: "Protein-Packed Smoothie Bowl",
+          quantity: "1 bowl (approx. 16 oz)",
+          tags: ["vegetarian", "high-protein", "high-fiber"],
+          description: "A nutrient-dense breakfast that's perfect for post-workout recovery.",
+          ingredients: [
+            "Protein powder",
+            "Frozen berries",
+            "Banana",
+            "Spinach",
+            "Almond milk",
+            "Granola",
+            "Chia seeds",
+          ],
+          preparation:
+            "Blend protein powder, fruits, spinach, and milk. Pour into bowl and top with granola and seeds.",
+        },
+      ],
+      lunch: [
+        {
+          name: "Mediterranean Chickpea Salad",
+          quantity: "1 large bowl (approx. 2 cups)",
+          tags: ["vegetarian", "high-fiber", "heart-healthy", "mediterranean"],
+          description: "A protein-rich salad with Mediterranean flavors and heart-healthy fats.",
+          ingredients: [
+            "Chickpeas",
+            "Cucumber",
+            "Cherry tomatoes",
+            "Red onion",
+            "Feta cheese",
+            "Kalamata olives",
+            "Olive oil",
+            "Lemon juice",
+            "Herbs",
+          ],
+          preparation:
+            "Combine all ingredients in a bowl, dress with olive oil and lemon juice, season with herbs and spices.",
+        },
+        {
+          name: "Quinoa Buddha Bowl with Roasted Vegetables",
+          quantity: "1 bowl (approx. 2 cups)",
+          tags: ["vegetarian", "high-protein", "high-fiber"],
+          description: "A balanced bowl with complete proteins, complex carbs, and essential nutrients.",
+          ingredients: [
+            "Quinoa",
+            "Roasted sweet potato",
+            "Roasted broccoli",
+            "Avocado",
+            "Chickpeas",
+            "Tahini dressing",
+          ],
+          preparation:
+            "Arrange quinoa, roasted vegetables, and chickpeas in a bowl. Top with avocado and drizzle with tahini dressing.",
         },
       ],
     }
@@ -1019,6 +1192,16 @@ export function EnhancedMealPlanGenerator({ userData }) {
     setSelectedMedicalConditions(plan.medicalConditions || ["none"])
     setMealPlan(plan.mealPlan || [])
 
+    // Load goal weight if available
+    if (plan.goalWeight) {
+      setGoalWeight(plan.goalWeight)
+
+      // Calculate weight difference if user data is available
+      if (userData?.weight) {
+        calculateWeightDifference(userData.weight, plan.goalWeight)
+      }
+    }
+
     toast({
       title: "Meal plan loaded",
       description: "Your saved meal plan has been loaded",
@@ -1039,6 +1222,77 @@ export function EnhancedMealPlanGenerator({ userData }) {
               <TabsTrigger value="history">History</TabsTrigger>
             </TabsList>
             <TabsContent value="generate" className="space-y-4 mt-4">
+              {/* Weight Goal Section */}
+              {userData?.weight && (
+                <Card className="p-4 bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-800">
+                  <div className="space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+                      <div>
+                        <h3 className="text-base font-medium">Weight Progress</h3>
+                        <p className="text-sm text-muted-foreground">
+                          Current: {userData.weight} kg • Goal: {goalWeight} kg
+                          <span className={weightDifference > 0 ? "text-red-500" : "text-green-500"}>
+                            {" "}
+                            ({weightDifference > 0 ? "+" : ""}
+                            {weightDifference.toFixed(1)} kg)
+                          </span>
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button variant="outline" size="sm" onClick={calculateCalorieGoal} disabled={isCalculating}>
+                          {isCalculating ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <Calculator className="h-4 w-4 mr-2" />
+                          )}
+                          Recalculate
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>Current: {userData.weight} kg</span>
+                        <span>Goal: {goalWeight} kg</span>
+                      </div>
+                      <Progress value={weightProgress} className="h-2" />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="goal-weight">Goal Weight (kg)</Label>
+                        <Input
+                          id="goal-weight"
+                          type="number"
+                          value={goalWeight}
+                          onChange={(e) => {
+                            const newGoalWeight = Number.parseFloat(e.target.value) || userData.weight
+                            setGoalWeight(newGoalWeight)
+                            if (userData.weight) {
+                              calculateWeightDifference(userData.weight, newGoalWeight)
+                            }
+                          }}
+                          min={30}
+                          max={200}
+                          step={0.5}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="calorie-goal">Daily Calorie Goal</Label>
+                        <Input
+                          id="calorie-goal"
+                          type="number"
+                          value={calorieGoal}
+                          onChange={(e) => setCalorieGoal(Number.parseInt(e.target.value) || 2000)}
+                          min={1200}
+                          max={4000}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              )}
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="diet-preference">Diet Preference</Label>
@@ -1072,26 +1326,17 @@ export function EnhancedMealPlanGenerator({ userData }) {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="calorie-goal">Daily Calorie Goal</Label>
-                  <Input
-                    id="calorie-goal"
-                    type="number"
-                    value={calorieGoal}
-                    onChange={(e) => setCalorieGoal(Number.parseInt(e.target.value) || 2000)}
-                    min={1200}
-                    max={4000}
-                  />
-                </div>
-                <div className="space-y-2">
                   <Label htmlFor="diet-period">Diet Period</Label>
                   <Select value={dietPeriod} onValueChange={setDietPeriod}>
                     <SelectTrigger id="diet-period">
                       <SelectValue placeholder="Select diet period" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="one-day">One Day</SelectItem>
-                      <SelectItem value="three-days">Three Days</SelectItem>
-                      <SelectItem value="one-week">One Week</SelectItem>
+                      {dietPeriods.map((period) => (
+                        <SelectItem key={period.value} value={period.value}>
+                          {period.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1119,16 +1364,11 @@ export function EnhancedMealPlanGenerator({ userData }) {
                 </p>
               </div>
 
-              <Button onClick={generateMealPlan} disabled={isGenerating || isLoadingTemplates} className="w-full">
+              <Button onClick={generateMealPlan} disabled={isGenerating} className="w-full">
                 {isGenerating ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Generating...
-                  </>
-                ) : isLoadingTemplates ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Loading meal templates...
                   </>
                 ) : (
                   "Generate Meal Plan"
