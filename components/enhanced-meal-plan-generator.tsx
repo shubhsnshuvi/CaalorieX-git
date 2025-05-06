@@ -178,7 +178,16 @@ export function EnhancedMealPlanGenerator({ userData }) {
     if (userData?.weight && goalWeight && dietPeriod && dietGoal) {
       calculateCalorieGoal()
     }
-  }, [goalWeight, dietPeriod, dietGoal])
+  }, [
+    goalWeight,
+    dietPeriod,
+    dietGoal,
+    userData?.weight,
+    userData?.height,
+    userData?.age,
+    userData?.gender,
+    userData?.activityLevel,
+  ])
 
   // Calculate weight difference and progress percentage
   const calculateWeightDifference = (currentWeight: number, targetWeight: number) => {
@@ -205,6 +214,22 @@ export function EnhancedMealPlanGenerator({ userData }) {
       const progress = Math.abs(difference) <= 1 ? 100 : 0
       setWeightProgress(progress)
     }
+  }
+
+  // Add this function after the calculateWeightDifference function
+  const getBmiStatus = () => {
+    if (!userData?.weight || !userData?.height) return null
+
+    // Calculate BMI: weight (kg) / (height (m) * height (m))
+    const heightInMeters = userData.height / 100
+    const bmi = userData.weight / (heightInMeters * heightInMeters)
+
+    // Determine BMI category
+    if (bmi < 18.5) return { status: "Underweight", color: "text-blue-500", recommendation: "weight-gain" }
+    if (bmi >= 18.5 && bmi < 25)
+      return { status: "Normal weight", color: "text-green-500", recommendation: "weight-maintenance" }
+    if (bmi >= 25 && bmi < 30) return { status: "Overweight", color: "text-yellow-500", recommendation: "weight-loss" }
+    return { status: "Obese", color: "text-red-500", recommendation: "weight-loss" }
   }
 
   // Calculate appropriate calorie goal based on user data and goals
@@ -408,6 +433,7 @@ export function EnhancedMealPlanGenerator({ userData }) {
     }
   }
 
+  // Modify the generateMealPlan function to add auto-scroll at the end
   const generateMealPlan = async () => {
     if (!user) {
       toast({
@@ -482,6 +508,14 @@ export function EnhancedMealPlanGenerator({ userData }) {
         title: "Meal plan generated",
         description: "Your personalized meal plan is ready!",
       })
+
+      // Add auto-scroll to the meal plan section
+      setTimeout(() => {
+        const mealPlanElement = document.getElementById("meal-plan-section")
+        if (mealPlanElement) {
+          mealPlanElement.scrollIntoView({ behavior: "smooth" })
+        }
+      }, 100)
     } catch (error) {
       console.error("Error generating meal plan:", error)
       toast({
@@ -1237,6 +1271,22 @@ export function EnhancedMealPlanGenerator({ userData }) {
                             {weightDifference.toFixed(1)} kg)
                           </span>
                         </p>
+                        {/* Add BMI Status */}
+                        {getBmiStatus() && (
+                          <p className="text-sm mt-1">
+                            BMI Status: <span className={getBmiStatus()?.color}>{getBmiStatus()?.status}</span>
+                            {getBmiStatus()?.recommendation !== dietGoal && (
+                              <span className="ml-2 text-orange-500 font-medium">
+                                (Recommended:{" "}
+                                {getBmiStatus()
+                                  ?.recommendation.split("-")
+                                  .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                                  .join(" ")}
+                                )
+                              </span>
+                            )}
+                          </p>
+                        )}
                       </div>
                       <div className="flex items-center gap-2">
                         <Button variant="outline" size="sm" onClick={calculateCalorieGoal} disabled={isCalculating}>
@@ -1430,7 +1480,7 @@ export function EnhancedMealPlanGenerator({ userData }) {
       </Card>
 
       {mealPlan.length > 0 && (
-        <Card>
+        <Card id="meal-plan-section">
           <CardHeader>
             <CardTitle>Your Personalized Meal Plan</CardTitle>
             <CardDescription>
