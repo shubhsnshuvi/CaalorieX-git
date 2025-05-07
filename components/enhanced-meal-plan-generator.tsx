@@ -131,6 +131,7 @@ export function EnhancedMealPlanGenerator({ userData }) {
   const [isCalculating, setIsCalculating] = useState(false)
   const [weightDifference, setWeightDifference] = useState<number>(0)
   const [weightProgress, setWeightProgress] = useState<number>(0)
+  const [userManuallySetGoalWeight, setUserManuallySetGoalWeight] = useState(false)
 
   // Fetch meal plan history when component mounts
   useEffect(() => {
@@ -175,19 +176,14 @@ export function EnhancedMealPlanGenerator({ userData }) {
 
   // Recalculate calorie goal when relevant factors change
   useEffect(() => {
-    if (userData?.weight && goalWeight && dietPeriod && dietGoal) {
-      calculateCalorieGoal()
+    if (userData?.weight && userData?.height && userData?.age && userData?.gender) {
+      // Add a small delay to ensure state updates have completed
+      const timer = setTimeout(() => {
+        calculateCalorieGoal()
+      }, 100)
+      return () => clearTimeout(timer)
     }
-  }, [
-    goalWeight,
-    dietPeriod,
-    dietGoal,
-    userData?.weight,
-    userData?.height,
-    userData?.age,
-    userData?.gender,
-    userData?.activityLevel,
-  ])
+  }, [goalWeight, dietGoal, dietPeriod, userData])
 
   // Calculate weight difference and progress percentage
   const calculateWeightDifference = (currentWeight: number, targetWeight: number) => {
@@ -325,10 +321,23 @@ export function EnhancedMealPlanGenerator({ userData }) {
       // Update calorie goal
       setCalorieGoal(calculatedCalorieGoal)
 
+      // Show toast notification
       toast({
         title: "Calorie goal updated",
-        description: `Your daily calorie goal has been set to ${calculatedCalorieGoal} calories.`,
+        description: `Your daily calorie goal has been set to ${calculatedCalorieGoal} calories based on your ${dietGoal.replace("-", " ")} goal.`,
       })
+
+      // Also update the goal weight if it wasn't manually set
+      if (!userManuallySetGoalWeight && userData.weight) {
+        const newGoalWeight =
+          dietGoal === "weight-gain"
+            ? userData.weight + 5
+            : dietGoal === "weight-loss"
+              ? userData.weight - 5
+              : userData.weight
+        setGoalWeight(newGoalWeight)
+        calculateWeightDifference(userData.weight, newGoalWeight)
+      }
     } catch (error) {
       console.error("Error calculating calorie goal:", error)
       toast({
@@ -513,9 +522,12 @@ export function EnhancedMealPlanGenerator({ userData }) {
       setTimeout(() => {
         const mealPlanElement = document.getElementById("meal-plan-section")
         if (mealPlanElement) {
-          mealPlanElement.scrollIntoView({ behavior: "smooth" })
+          mealPlanElement.scrollIntoView({ behavior: "smooth", block: "start" })
+          // Add focus for accessibility
+          mealPlanElement.setAttribute("tabindex", "-1")
+          mealPlanElement.focus({ preventScroll: true })
         }
-      }, 100)
+      }, 300) // Increased timeout to ensure DOM is updated
     } catch (error) {
       console.error("Error generating meal plan:", error)
       toast({
@@ -1318,6 +1330,7 @@ export function EnhancedMealPlanGenerator({ userData }) {
                           onChange={(e) => {
                             const newGoalWeight = Number.parseFloat(e.target.value) || userData.weight
                             setGoalWeight(newGoalWeight)
+                            setUserManuallySetGoalWeight(true)
                             if (userData.weight) {
                               calculateWeightDifference(userData.weight, newGoalWeight)
                             }
@@ -1394,22 +1407,26 @@ export function EnhancedMealPlanGenerator({ userData }) {
 
               {/* Medical Conditions Section */}
               <div className="space-y-2">
-                <Label>Medical Conditions</Label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 mt-2 border rounded-md p-3 bg-gray-50 dark:bg-gray-900">
+                <Label className="text-base font-medium">Medical Conditions</Label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 mt-2 border rounded-md p-4 bg-white dark:bg-gray-800">
                   {medicalConditions.map((condition) => (
-                    <div key={condition.id} className="flex items-center space-x-2">
+                    <div key={condition.id} className="flex items-center space-x-3">
                       <Checkbox
                         id={`condition-${condition.id}`}
                         checked={selectedMedicalConditions.includes(condition.id)}
                         onCheckedChange={(checked) => handleMedicalConditionChange(condition.id, checked === true)}
+                        className="h-5 w-5"
                       />
-                      <Label htmlFor={`condition-${condition.id}`} className="text-sm">
+                      <Label
+                        htmlFor={`condition-${condition.id}`}
+                        className="text-sm font-medium text-gray-900 dark:text-gray-100"
+                      >
                         {condition.label}
                       </Label>
                     </div>
                   ))}
                 </div>
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-sm text-gray-700 dark:text-gray-300 mt-2">
                   Select any medical conditions to customize your meal plan accordingly.
                 </p>
               </div>
