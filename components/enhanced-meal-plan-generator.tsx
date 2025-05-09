@@ -183,7 +183,7 @@ export function EnhancedMealPlanGenerator({ userData }) {
       }, 100)
       return () => clearTimeout(timer)
     }
-  }, [goalWeight, dietGoal, dietPeriod, userData])
+  }, [goalWeight, dietPeriod, userData])
 
   // Calculate weight difference and progress percentage
   const calculateWeightDifference = (currentWeight: number, targetWeight: number) => {
@@ -257,61 +257,65 @@ export function EnhancedMealPlanGenerator({ userData }) {
       // Calculate daily calorie adjustment based on weight goal and time period
       let dailyCalorieAdjustment = 0
 
-      if (dietGoal === "weight-loss" || dietGoal === "weight-gain") {
-        // Calculate weight difference
-        const weightDiff = Math.abs(userData.weight - goalWeight)
+      // Calculate weight difference - always use the absolute difference
+      const weightDiff = Math.abs(userData.weight - goalWeight)
 
-        // Convert diet period to days
-        let periodInDays
-        switch (dietPeriod) {
-          case "one-day":
-            periodInDays = 1
-            break
-          case "three-days":
-            periodInDays = 3
-            break
-          case "one-week":
-            periodInDays = 7
-            break
-          case "two-weeks":
-            periodInDays = 14
-            break
-          case "one-month":
-            periodInDays = 30
-            break
-          case "two-months":
-            periodInDays = 60
-            break
-          case "three-months":
-            periodInDays = 90
-            break
-          case "six-months":
-            periodInDays = 180
-            break
-          default:
-            periodInDays = 30
-        }
-
-        // 1kg of fat is approximately 7700 calories
-        // Calculate daily calorie deficit/surplus needed
-        const totalCalorieAdjustment = weightDiff * 7700
-        dailyCalorieAdjustment = Math.round(totalCalorieAdjustment / periodInDays)
-
-        // Cap the adjustment to reasonable limits for health
-        dailyCalorieAdjustment = Math.min(dailyCalorieAdjustment, 1000)
+      // Convert diet period to days
+      let periodInDays
+      switch (dietPeriod) {
+        case "one-day":
+          periodInDays = 1
+          break
+        case "three-days":
+          periodInDays = 3
+          break
+        case "one-week":
+          periodInDays = 7
+          break
+        case "two-weeks":
+          periodInDays = 14
+          break
+        case "one-month":
+          periodInDays = 30
+          break
+        case "two-months":
+          periodInDays = 60
+          break
+        case "three-months":
+          periodInDays = 90
+          break
+        case "six-months":
+          periodInDays = 180
+          break
+        default:
+          periodInDays = 30
       }
 
-      // Calculate final calorie goal
+      // 1kg of fat is approximately 7700 calories
+      // Calculate daily calorie deficit/surplus needed
+      const totalCalorieAdjustment = weightDiff * 7700
+      dailyCalorieAdjustment = Math.round(totalCalorieAdjustment / periodInDays)
+
+      // Cap the adjustment to reasonable limits for health
+      dailyCalorieAdjustment = Math.min(dailyCalorieAdjustment, 1000)
+
+      // Calculate final calorie goal based on diet goal
       let calculatedCalorieGoal
 
-      if (dietGoal === "weight-loss") {
+      // Determine if we need a deficit or surplus based on current vs goal weight
+      const needsDeficit = userData.weight > goalWeight
+      const needsSurplus = userData.weight < goalWeight
+
+      if (needsDeficit) {
+        // Need to lose weight
         calculatedCalorieGoal = tdee - dailyCalorieAdjustment
         // Ensure minimum healthy calorie intake
         calculatedCalorieGoal = Math.max(calculatedCalorieGoal, userData.gender === "male" ? 1500 : 1200)
-      } else if (dietGoal === "weight-gain" || dietGoal === "muscle-gain") {
+      } else if (needsSurplus) {
+        // Need to gain weight
         calculatedCalorieGoal = tdee + dailyCalorieAdjustment
       } else {
-        // For maintenance
+        // Maintain weight
         calculatedCalorieGoal = tdee
       }
 
@@ -324,20 +328,8 @@ export function EnhancedMealPlanGenerator({ userData }) {
       // Show toast notification
       toast({
         title: "Calorie goal updated",
-        description: `Your daily calorie goal has been set to ${calculatedCalorieGoal} calories based on your ${dietGoal.replace("-", " ")} goal.`,
+        description: `Your daily calorie goal has been set to ${calculatedCalorieGoal} calories based on your target weight of ${goalWeight}kg.`,
       })
-
-      // Also update the goal weight if it wasn't manually set
-      if (!userManuallySetGoalWeight && userData.weight) {
-        const newGoalWeight =
-          dietGoal === "weight-gain"
-            ? userData.weight + 5
-            : dietGoal === "weight-loss"
-              ? userData.weight - 5
-              : userData.weight
-        setGoalWeight(newGoalWeight)
-        calculateWeightDifference(userData.weight, newGoalWeight)
-      }
     } catch (error) {
       console.error("Error calculating calorie goal:", error)
       toast({
@@ -1333,6 +1325,8 @@ export function EnhancedMealPlanGenerator({ userData }) {
                             setUserManuallySetGoalWeight(true)
                             if (userData.weight) {
                               calculateWeightDifference(userData.weight, newGoalWeight)
+                              // Immediately recalculate calories when goal weight changes
+                              setTimeout(() => calculateCalorieGoal(), 50)
                             }
                           }}
                           min={30}
