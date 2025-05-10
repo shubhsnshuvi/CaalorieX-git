@@ -194,7 +194,7 @@ export function EnhancedMealPlanGenerator({ userData }) {
   // Recalculate calorie goal when relevant factors change
   useEffect(() => {
     if (userData?.weight && userData?.height && userData?.age && userData?.gender) {
-      // Remove the delay to ensure immediate calculation
+      // Remove any conditions that might prevent calculation
       calculateCalorieGoal()
     }
   }, [goalWeight, dietPeriod, userData, dietGoal])
@@ -245,6 +245,7 @@ export function EnhancedMealPlanGenerator({ userData }) {
   // Calculate appropriate calorie goal based on user data and goals
   const calculateCalorieGoal = () => {
     setIsCalculating(true)
+    console.log("Calculating calorie goal with goal weight:", goalWeight)
 
     try {
       if (!userData.weight || !userData.height || !userData.age || !userData.gender) {
@@ -331,6 +332,7 @@ export function EnhancedMealPlanGenerator({ userData }) {
 
       // Update calorie goal
       setCalorieGoal(calculatedCalorieGoal)
+      console.log("Updated calorie goal to:", calculatedCalorieGoal)
 
       // Calculate estimated time to reach goal
       const estimatedDays = calculateEstimatedDaysToGoal(weightDiff, calculatedCalorieGoal, maintenanceCalories)
@@ -1483,8 +1485,10 @@ export function EnhancedMealPlanGenerator({ userData }) {
                                 setUserManuallySetGoalWeight(true)
                                 if (userData.weight) {
                                   calculateWeightDifference(userData.weight, newGoalWeight)
-                                  // Immediately recalculate calories when goal weight changes
-                                  calculateCalorieGoal()
+                                  // Force immediate recalculation
+                                  setTimeout(() => {
+                                    calculateCalorieGoal()
+                                  }, 0)
                                 }
                               }}
                               min={30}
@@ -1502,7 +1506,10 @@ export function EnhancedMealPlanGenerator({ userData }) {
                                   setUserManuallySetGoalWeight(true)
                                   if (userData.weight) {
                                     calculateWeightDifference(userData.weight, newGoalWeight)
-                                    calculateCalorieGoal()
+                                    // Force immediate recalculation
+                                    setTimeout(() => {
+                                      calculateCalorieGoal()
+                                    }, 0)
                                   }
                                 }}
                               >
@@ -1517,7 +1524,10 @@ export function EnhancedMealPlanGenerator({ userData }) {
                                   setUserManuallySetGoalWeight(true)
                                   if (userData.weight) {
                                     calculateWeightDifference(userData.weight, newGoalWeight)
-                                    calculateCalorieGoal()
+                                    // Force immediate recalculation
+                                    setTimeout(() => {
+                                      calculateCalorieGoal()
+                                    }, 0)
                                   }
                                 }}
                               >
