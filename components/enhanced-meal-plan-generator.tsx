@@ -133,6 +133,23 @@ export function EnhancedMealPlanGenerator({ userData }) {
   const [weightProgress, setWeightProgress] = useState<number>(0)
   const [userManuallySetGoalWeight, setUserManuallySetGoalWeight] = useState(false)
 
+  // State for detailed calorie calculation information
+  const [calorieCalculationDetails, setCalorieCalculationDetails] = useState<{
+    maintenanceCalories: number
+    goalCalories: number
+    weightDifference: number
+    estimatedDays: number
+    bmr: number
+    tdee: number
+  }>({
+    maintenanceCalories: 0,
+    goalCalories: 0,
+    weightDifference: 0,
+    estimatedDays: 0,
+    bmr: 0,
+    tdee: 0,
+  })
+
   // Fetch meal plan history when component mounts
   useEffect(() => {
     if (user) {
@@ -183,7 +200,7 @@ export function EnhancedMealPlanGenerator({ userData }) {
       }, 100)
       return () => clearTimeout(timer)
     }
-  }, [goalWeight, dietPeriod, userData])
+  }, [goalWeight, dietPeriod, userData, dietGoal])
 
   // Calculate weight difference and progress percentage
   const calculateWeightDifference = (currentWeight: number, targetWeight: number) => {
@@ -239,6 +256,7 @@ export function EnhancedMealPlanGenerator({ userData }) {
           description: "Please complete your profile with weight, height, age, and gender information.",
           variant: "destructive",
         })
+        setIsCalculating(false)
         return
       }
 
@@ -254,69 +272,61 @@ export function EnhancedMealPlanGenerator({ userData }) {
       const activityLevel = userData.activityLevel || "moderate"
       const tdee = Math.round(bmr * activityMultipliers[activityLevel])
 
-      // Calculate daily calorie adjustment based on weight goal and time period
-      let dailyCalorieAdjustment = 0
+      // Store the maintenance calories for reference
+      const maintenanceCalories = tdee
 
-      // Calculate weight difference - always use the absolute difference
-      const weightDiff = Math.abs(userData.weight - goalWeight)
+      // Calculate weight difference
+      const weightDiff = userData.weight - goalWeight
 
-      // Convert diet period to days
-      let periodInDays
-      switch (dietPeriod) {
-        case "one-day":
-          periodInDays = 1
-          break
-        case "three-days":
-          periodInDays = 3
-          break
-        case "one-week":
-          periodInDays = 7
-          break
-        case "two-weeks":
-          periodInDays = 14
-          break
-        case "one-month":
-          periodInDays = 30
-          break
-        case "two-months":
-          periodInDays = 60
-          break
-        case "three-months":
-          periodInDays = 90
-          break
-        case "six-months":
-          periodInDays = 180
-          break
-        default:
-          periodInDays = 30
-      }
-
-      // 1kg of fat is approximately 7700 calories
-      // Calculate daily calorie deficit/surplus needed
-      const totalCalorieAdjustment = weightDiff * 7700
-      dailyCalorieAdjustment = Math.round(totalCalorieAdjustment / periodInDays)
-
-      // Cap the adjustment to reasonable limits for health
-      dailyCalorieAdjustment = Math.min(dailyCalorieAdjustment, 1000)
-
-      // Calculate final calorie goal based on diet goal
+      // Calculate calorie adjustment based on weight difference
+      // Each kg of body fat = approximately 7700 calories
       let calculatedCalorieGoal
 
-      // Determine if we need a deficit or surplus based on current vs goal weight
-      const needsDeficit = userData.weight > goalWeight
-      const needsSurplus = userData.weight < goalWeight
+      if (Math.abs(weightDiff) < 0.1) {
+        // If the difference is negligible, maintain current weight
+        calculatedCalorieGoal = maintenanceCalories
+      } else if (weightDiff > 0) {
+        // Need to lose weight - create a deficit
+        // Calculate deficit per day based on weight difference
+        // For each kg to lose, create a deficit of 7700 calories spread over the diet period
 
-      if (needsDeficit) {
-        // Need to lose weight
-        calculatedCalorieGoal = tdee - dailyCalorieAdjustment
+        // Convert diet period to days
+        const periodInDays = getPeriodInDays(dietPeriod)
+
+        // Calculate total calorie deficit needed
+        const totalDeficitNeeded = weightDiff * 7700
+
+        // Calculate daily deficit
+        let dailyDeficit = Math.round(totalDeficitNeeded / periodInDays)
+
+        // Cap the daily deficit to ensure healthy weight loss (max 1000 calories/day deficit)
+        dailyDeficit = Math.min(dailyDeficit, 1000)
+
+        // Calculate goal calories
+        calculatedCalorieGoal = maintenanceCalories - dailyDeficit
+
         // Ensure minimum healthy calorie intake
-        calculatedCalorieGoal = Math.max(calculatedCalorieGoal, userData.gender === "male" ? 1500 : 1200)
-      } else if (needsSurplus) {
-        // Need to gain weight
-        calculatedCalorieGoal = tdee + dailyCalorieAdjustment
+        const minCalories = userData.gender === "male" ? 1500 : 1200
+        calculatedCalorieGoal = Math.max(calculatedCalorieGoal, minCalories)
       } else {
-        // Maintain weight
-        calculatedCalorieGoal = tdee
+        // Need to gain weight - create a surplus
+        // Calculate surplus per day based on weight difference
+        // For each kg to gain, create a surplus of 7700 calories spread over the diet period
+
+        // Convert diet period to days
+        const periodInDays = getPeriodInDays(dietPeriod)
+
+        // Calculate total calorie surplus needed
+        const totalSurplusNeeded = Math.abs(weightDiff) * 7700
+
+        // Calculate daily surplus
+        let dailySurplus = Math.round(totalSurplusNeeded / periodInDays)
+
+        // Cap the daily surplus to ensure healthy weight gain (max 500 calories/day surplus)
+        dailySurplus = Math.min(dailySurplus, 500)
+
+        // Calculate goal calories
+        calculatedCalorieGoal = maintenanceCalories + dailySurplus
       }
 
       // Round to nearest 50 calories for simplicity
@@ -325,10 +335,23 @@ export function EnhancedMealPlanGenerator({ userData }) {
       // Update calorie goal
       setCalorieGoal(calculatedCalorieGoal)
 
+      // Calculate estimated time to reach goal
+      const estimatedDays = calculateEstimatedDaysToGoal(weightDiff, calculatedCalorieGoal, maintenanceCalories)
+
       // Show toast notification
       toast({
         title: "Calorie goal updated",
         description: `Your daily calorie goal has been set to ${calculatedCalorieGoal} calories based on your target weight of ${goalWeight}kg.`,
+      })
+
+      // Update calculation details for display
+      setCalorieCalculationDetails({
+        maintenanceCalories,
+        goalCalories: calculatedCalorieGoal,
+        weightDifference: weightDiff,
+        estimatedDays,
+        bmr: Math.round(bmr),
+        tdee: maintenanceCalories,
       })
     } catch (error) {
       console.error("Error calculating calorie goal:", error)
@@ -340,6 +363,45 @@ export function EnhancedMealPlanGenerator({ userData }) {
     } finally {
       setIsCalculating(false)
     }
+  }
+
+  // Helper function to convert diet period to days
+  const getPeriodInDays = (period: string): number => {
+    switch (period) {
+      case "one-day":
+        return 1
+      case "three-days":
+        return 3
+      case "one-week":
+        return 7
+      case "two-weeks":
+        return 14
+      case "one-month":
+        return 30
+      case "two-months":
+        return 60
+      case "three-months":
+        return 90
+      case "six-months":
+        return 180
+      default:
+        return 30
+    }
+  }
+
+  // Helper function to calculate estimated days to reach goal
+  const calculateEstimatedDaysToGoal = (
+    weightDiff: number,
+    goalCalories: number,
+    maintenanceCalories: number,
+  ): number => {
+    if (Math.abs(weightDiff) < 0.1) return 0 // Already at goal
+
+    const calorieDeficitOrSurplus = Math.abs(maintenanceCalories - goalCalories)
+    if (calorieDeficitOrSurplus < 10) return Number.POSITIVE_INFINITY // No significant deficit/surplus
+
+    // Calculate days based on 7700 calories per kg
+    return Math.round((Math.abs(weightDiff) * 7700) / calorieDeficitOrSurplus)
   }
 
   const fetchMealTemplates = async () => {
@@ -1260,93 +1322,245 @@ export function EnhancedMealPlanGenerator({ userData }) {
               <TabsTrigger value="history">History</TabsTrigger>
             </TabsList>
             <TabsContent value="generate" className="space-y-4 mt-4">
-              {/* Weight Goal Section */}
+              {/* Weight and Calorie Goal Section */}
               {userData?.weight && (
-                <Card className="p-4 bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-800">
-                  <div className="space-y-4">
-                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
-                      <div>
-                        <h3 className="text-base font-medium">Weight Progress</h3>
-                        <p className="text-sm text-muted-foreground">
-                          Current: {userData.weight} kg • Goal: {goalWeight} kg
-                          <span className={weightDifference > 0 ? "text-red-500" : "text-green-500"}>
-                            {" "}
-                            ({weightDifference > 0 ? "+" : ""}
-                            {weightDifference.toFixed(1)} kg)
-                          </span>
-                        </p>
-                        {/* Add BMI Status */}
+                <Card className="border border-gray-200 dark:border-gray-700 shadow-sm">
+                  <CardHeader className="bg-gradient-to-r from-orange-50 to-amber-50 dark:from-gray-800 dark:to-gray-900 border-b border-gray-200 dark:border-gray-700 pb-3">
+                    <CardTitle className="text-lg flex items-center">
+                      <Calculator className="h-5 w-5 mr-2 text-orange-500" />
+                      Weight & Calorie Calculator
+                    </CardTitle>
+                    <CardDescription>
+                      Set your goal weight to automatically calculate your daily calorie needs
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    {/* Current vs Goal Weight Section */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-0 divide-y md:divide-y-0 md:divide-x divide-gray-200 dark:divide-gray-700">
+                      <div className="p-4">
+                        <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">Weight Status</h4>
+
+                        <div className="flex justify-between items-center mb-4">
+                          <div>
+                            <div className="text-2xl font-bold">{userData.weight} kg</div>
+                            <div className="text-sm text-gray-500 dark:text-gray-400">Current Weight</div>
+                          </div>
+                          <div className="text-2xl font-bold">→</div>
+                          <div className="text-right">
+                            <div className="text-2xl font-bold">{goalWeight} kg</div>
+                            <div className="text-sm text-gray-500 dark:text-gray-400">Goal Weight</div>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2 mb-4">
+                          <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
+                            <span>Current: {userData.weight} kg</span>
+                            <span>Goal: {goalWeight} kg</span>
+                          </div>
+                          <Progress
+                            value={weightProgress}
+                            className="h-2"
+                            indicatorClassName={
+                              weightDifference > 0
+                                ? "bg-green-500"
+                                : weightDifference < 0
+                                  ? "bg-blue-500"
+                                  : "bg-orange-500"
+                            }
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center">
+                            <div
+                              className={`w-3 h-3 rounded-full mr-2 ${weightDifference > 0 ? "bg-green-500" : weightDifference < 0 ? "bg-blue-500" : "bg-orange-500"}`}
+                            ></div>
+                            <span className="text-sm font-medium">
+                              {weightDifference > 0
+                                ? `Lose ${weightDifference.toFixed(1)} kg`
+                                : weightDifference < 0
+                                  ? `Gain ${Math.abs(weightDifference).toFixed(1)} kg`
+                                  : "Maintain weight"}
+                            </span>
+                          </div>
+                          {calorieCalculationDetails.estimatedDays > 0 && (
+                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                              Est. time:{" "}
+                              {calorieCalculationDetails.estimatedDays > 180
+                                ? "6+ months"
+                                : calorieCalculationDetails.estimatedDays > 30
+                                  ? `${Math.round(calorieCalculationDetails.estimatedDays / 30)} months`
+                                  : `${calorieCalculationDetails.estimatedDays} days`}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* BMI Status */}
                         {getBmiStatus() && (
-                          <p className="text-sm mt-1">
-                            BMI Status: <span className={getBmiStatus()?.color}>{getBmiStatus()?.status}</span>
+                          <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-md">
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm font-medium">BMI Status:</span>
+                              <span className={`text-sm font-medium ${getBmiStatus()?.color}`}>
+                                {getBmiStatus()?.status}
+                              </span>
+                            </div>
                             {getBmiStatus()?.recommendation !== dietGoal && (
-                              <span className="ml-2 text-orange-500 font-medium">
-                                (Recommended:{" "}
+                              <div className="mt-1 text-xs text-orange-500">
+                                Recommended:{" "}
                                 {getBmiStatus()
                                   ?.recommendation.split("-")
                                   .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
                                   .join(" ")}
-                                )
-                              </span>
+                              </div>
                             )}
-                          </p>
+                          </div>
                         )}
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm" onClick={calculateCalorieGoal} disabled={isCalculating}>
-                          {isCalculating ? (
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          ) : (
-                            <Calculator className="h-4 w-4 mr-2" />
-                          )}
-                          Recalculate
-                        </Button>
+
+                      <div className="p-4">
+                        <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">
+                          Calorie Calculation
+                        </h4>
+
+                        <div className="space-y-4">
+                          <div className="flex justify-between items-center">
+                            <div>
+                              <div className="text-2xl font-bold">{calorieGoal}</div>
+                              <div className="text-sm text-gray-500 dark:text-gray-400">Daily Calorie Goal</div>
+                            </div>
+                            <div
+                              className={`px-3 py-1 rounded-full text-sm font-medium ${
+                                calorieCalculationDetails.goalCalories < calorieCalculationDetails.maintenanceCalories
+                                  ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                                  : calorieCalculationDetails.goalCalories >
+                                      calorieCalculationDetails.maintenanceCalories
+                                    ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                                    : "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200"
+                              }`}
+                            >
+                              {calorieCalculationDetails.goalCalories < calorieCalculationDetails.maintenanceCalories
+                                ? `${calorieCalculationDetails.maintenanceCalories - calorieCalculationDetails.goalCalories} cal deficit`
+                                : calorieCalculationDetails.goalCalories > calorieCalculationDetails.maintenanceCalories
+                                  ? `${calorieCalculationDetails.goalCalories - calorieCalculationDetails.maintenanceCalories} cal surplus`
+                                  : "Maintenance"}
+                            </div>
+                          </div>
+
+                          <div className="space-y-2 text-sm">
+                            <div className="flex justify-between">
+                              <span className="text-gray-500 dark:text-gray-400">BMR:</span>
+                              <span>{calorieCalculationDetails.bmr} calories</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-500 dark:text-gray-400">TDEE (Maintenance):</span>
+                              <span>{calorieCalculationDetails.maintenanceCalories} calories</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-500 dark:text-gray-400">Activity Level:</span>
+                              <span className="capitalize">{userData.activityLevel || "moderate"}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-500 dark:text-gray-400">Diet Period:</span>
+                              <span className="capitalize">{dietPeriod.replace(/-/g, " ")}</span>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </div>
 
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-xs text-muted-foreground">
-                        <span>Current: {userData.weight} kg</span>
-                        <span>Goal: {goalWeight} kg</span>
+                    {/* Goal Weight and Calorie Input Section */}
+                    <div className="border-t border-gray-200 dark:border-gray-700 p-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="goal-weight" className="text-sm font-medium">
+                            Goal Weight (kg)
+                          </Label>
+                          <div className="flex">
+                            <Input
+                              id="goal-weight"
+                              type="number"
+                              value={goalWeight}
+                              onChange={(e) => {
+                                const newGoalWeight = Number.parseFloat(e.target.value) || userData.weight
+                                setGoalWeight(newGoalWeight)
+                                setUserManuallySetGoalWeight(true)
+                                if (userData.weight) {
+                                  calculateWeightDifference(userData.weight, newGoalWeight)
+                                  // Immediately recalculate calories when goal weight changes
+                                  setTimeout(() => calculateCalorieGoal(), 50)
+                                }
+                              }}
+                              min={30}
+                              max={200}
+                              step={0.5}
+                              className="rounded-r-none"
+                            />
+                            <div className="flex">
+                              <Button
+                                variant="outline"
+                                className="rounded-l-none border-l-0 px-2"
+                                onClick={() => {
+                                  const newGoalWeight = goalWeight - 0.5
+                                  setGoalWeight(newGoalWeight)
+                                  setUserManuallySetGoalWeight(true)
+                                  if (userData.weight) {
+                                    calculateWeightDifference(userData.weight, newGoalWeight)
+                                    setTimeout(() => calculateCalorieGoal(), 50)
+                                  }
+                                }}
+                              >
+                                -
+                              </Button>
+                              <Button
+                                variant="outline"
+                                className="rounded-l-none border-l-0 px-2"
+                                onClick={() => {
+                                  const newGoalWeight = goalWeight + 0.5
+                                  setGoalWeight(newGoalWeight)
+                                  setUserManuallySetGoalWeight(true)
+                                  if (userData.weight) {
+                                    calculateWeightDifference(userData.weight, newGoalWeight)
+                                    setTimeout(() => calculateCalorieGoal(), 50)
+                                  }
+                                }}
+                              >
+                                +
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="calorie-goal" className="text-sm font-medium">
+                            Daily Calorie Goal
+                          </Label>
+                          <div className="flex">
+                            <Input
+                              id="calorie-goal"
+                              type="number"
+                              value={calorieGoal}
+                              onChange={(e) => setCalorieGoal(Number.parseInt(e.target.value) || 2000)}
+                              min={1200}
+                              max={4000}
+                              step={50}
+                              className="rounded-r-none"
+                            />
+                            <Button
+                              variant="outline"
+                              className="rounded-l-none border-l-0"
+                              onClick={calculateCalorieGoal}
+                              disabled={isCalculating}
+                            >
+                              {isCalculating ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Calculator className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </div>
+                        </div>
                       </div>
-                      <Progress value={weightProgress} className="h-2" />
                     </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="goal-weight">Goal Weight (kg)</Label>
-                        <Input
-                          id="goal-weight"
-                          type="number"
-                          value={goalWeight}
-                          onChange={(e) => {
-                            const newGoalWeight = Number.parseFloat(e.target.value) || userData.weight
-                            setGoalWeight(newGoalWeight)
-                            setUserManuallySetGoalWeight(true)
-                            if (userData.weight) {
-                              calculateWeightDifference(userData.weight, newGoalWeight)
-                              // Immediately recalculate calories when goal weight changes
-                              setTimeout(() => calculateCalorieGoal(), 50)
-                            }
-                          }}
-                          min={30}
-                          max={200}
-                          step={0.5}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="calorie-goal">Daily Calorie Goal</Label>
-                        <Input
-                          id="calorie-goal"
-                          type="number"
-                          value={calorieGoal}
-                          onChange={(e) => setCalorieGoal(Number.parseInt(e.target.value) || 2000)}
-                          min={1200}
-                          max={4000}
-                        />
-                      </div>
-                    </div>
-                  </div>
+                  </CardContent>
                 </Card>
               )}
 
