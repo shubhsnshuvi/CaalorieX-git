@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useToast } from "@/components/ui/use-toast"
-import { Loader2, RefreshCw, Info, Calculator } from "lucide-react"
+import { Loader2, RefreshCw, Info, Calculator, ArrowRight } from "lucide-react"
 import { db } from "@/lib/firebase"
 import { collection, addDoc, query, where, getDocs, Timestamp, orderBy, limit } from "firebase/firestore"
 import { useAuth } from "@/lib/use-auth"
@@ -35,7 +35,7 @@ interface MealPlan {
     id?: string
     fdcId?: string
     tags?: string[]
-    description?: string
+    description?: string[]
     ingredients?: string[]
     preparation?: string
   }[]
@@ -103,6 +103,30 @@ const activityMultipliers = {
   "very-active": 1.9, // Very hard exercise & physical job or 2x training
 }
 
+// Helper function to convert diet period to days
+const getPeriodInDays = (period: string): number => {
+  switch (period) {
+    case "one-day":
+      return 1
+    case "three-days":
+      return 3
+    case "one-week":
+      return 7
+    case "two-weeks":
+      return 14
+    case "one-month":
+      return 30
+    case "two-months":
+      return 60
+    case "three-months":
+      return 90
+    case "six-months":
+      return 180
+    default:
+      return 30
+  }
+}
+
 export function EnhancedMealPlanGenerator({ userData }) {
   const { user } = useAuth()
   const { toast } = useToast()
@@ -141,6 +165,7 @@ export function EnhancedMealPlanGenerator({ userData }) {
     estimatedDays: number
     bmr: number
     tdee: number
+    dailyDeficitOrSurplus: number
   }>({
     maintenanceCalories: 0,
     goalCalories: 0,
@@ -148,6 +173,7 @@ export function EnhancedMealPlanGenerator({ userData }) {
     estimatedDays: 0,
     bmr: 0,
     tdee: 0,
+    dailyDeficitOrSurplus: 0,
   })
 
   // Fetch meal plan history when component mounts
@@ -186,18 +212,10 @@ export function EnhancedMealPlanGenerator({ userData }) {
 
       // Calculate calorie goal based on profile data
       if (userData.weight && userData.height && userData.age && userData.gender && userData.activityLevel) {
-        calculateCalorieGoal()
+        calculateCalorieGoal(userData.weight, goalWeight, dietPeriod)
       }
     }
   }, [userData, goalParam])
-
-  // Recalculate calorie goal when relevant factors change
-  useEffect(() => {
-    if (userData?.weight && userData?.height && userData?.age && userData?.gender) {
-      // Remove any conditions that might prevent calculation
-      calculateCalorieGoal()
-    }
-  }, [goalWeight, dietPeriod, userData, dietGoal])
 
   // Calculate weight difference and progress percentage
   const calculateWeightDifference = (currentWeight: number, targetWeight: number) => {
@@ -226,7 +244,7 @@ export function EnhancedMealPlanGenerator({ userData }) {
     }
   }
 
-  // Add this function after the calculateWeightDifference function
+  // Get BMI status
   const getBmiStatus = () => {
     if (!userData?.weight || !userData?.height) return null
 
@@ -243,150 +261,131 @@ export function EnhancedMealPlanGenerator({ userData }) {
   }
 
   // Calculate appropriate calorie goal based on user data and goals
-  const calculateCalorieGoal = () => {
-    setIsCalculating(true)
-    console.log("Calculating calorie goal with goal weight:", goalWeight)
+  const calculateCalorieGoal = useCallback(
+    (currentWeight: number, targetWeight: number, period: string) => {
+      setIsCalculating(true)
+      console.log("Calculating calorie goal with goal weight:", targetWeight)
 
-    try {
-      if (!userData.weight || !userData.height || !userData.age || !userData.gender) {
+      try {
+        if (!userData.weight || !userData.height || !userData.age || !userData.gender) {
+          toast({
+            title: "Missing profile data",
+            description: "Please complete your profile with weight, height, age, and gender information.",
+            variant: "destructive",
+          })
+          setIsCalculating(false)
+          return
+        }
+
+        // Calculate BMR using Mifflin-St Jeor Equation
+        let bmr
+        if (userData.gender === "male") {
+          bmr = 10 * currentWeight + 6.25 * userData.height - 5 * userData.age + 5
+        } else {
+          bmr = 10 * currentWeight + 6.25 * userData.height - 5 * userData.age - 161
+        }
+
+        // Calculate TDEE (Total Daily Energy Expenditure)
+        const activityLevel = userData.activityLevel || "moderate"
+        const tdee = Math.round(bmr * activityMultipliers[activityLevel])
+
+        // Store the maintenance calories for reference
+        const maintenanceCalories = tdee
+
+        // Calculate weight difference
+        const weightDiff = currentWeight - targetWeight
+
+        // Calculate calorie adjustment based on weight difference
+        // Each kg of body fat = approximately 7700 calories
+        let calculatedCalorieGoal
+        let dailyDeficitOrSurplus = 0
+
+        if (Math.abs(weightDiff) < 0.1) {
+          // If the difference is negligible, maintain current weight
+          calculatedCalorieGoal = maintenanceCalories
+        } else if (weightDiff > 0) {
+          // Need to lose weight - create a deficit
+          // Calculate deficit per day based on weight difference
+          // For each kg to lose, create a deficit of 7700 calories spread over the diet period
+
+          // Convert diet period to days
+          const periodInDays = getPeriodInDays(period)
+
+          // Calculate total calorie deficit needed
+          const totalDeficitNeeded = weightDiff * 7700
+
+          // Calculate daily deficit
+          dailyDeficitOrSurplus = Math.round(totalDeficitNeeded / periodInDays)
+
+          // Cap the daily deficit to ensure healthy weight loss (max 1000 calories/day deficit)
+          dailyDeficitOrSurplus = Math.min(dailyDeficitOrSurplus, 1000)
+
+          // Calculate goal calories
+          calculatedCalorieGoal = maintenanceCalories - dailyDeficitOrSurplus
+
+          // Ensure minimum healthy calorie intake
+          const minCalories = userData.gender === "male" ? 1500 : 1200
+          calculatedCalorieGoal = Math.max(calculatedCalorieGoal, minCalories)
+        } else {
+          // Need to gain weight - create a surplus
+          // Calculate surplus per day based on weight difference
+          // For each kg to gain, create a surplus of 7700 calories spread over the diet period
+
+          // Convert diet period to days
+          const periodInDays = getPeriodInDays(period)
+
+          // Calculate total calorie surplus needed
+          const totalSurplusNeeded = Math.abs(weightDiff) * 7700
+
+          // Calculate daily surplus
+          dailyDeficitOrSurplus = Math.round(totalSurplusNeeded / periodInDays)
+
+          // Cap the daily surplus to ensure healthy weight gain (max 500 calories/day surplus)
+          dailyDeficitOrSurplus = Math.min(dailyDeficitOrSurplus, 500)
+
+          // Calculate goal calories
+          calculatedCalorieGoal = maintenanceCalories + dailyDeficitOrSurplus
+        }
+
+        // Round to nearest 50 calories for simplicity
+        calculatedCalorieGoal = Math.round(calculatedCalorieGoal / 50) * 50
+
+        // Update calorie goal
+        setCalorieGoal(calculatedCalorieGoal)
+        console.log("Updated calorie goal to:", calculatedCalorieGoal)
+
+        // Calculate estimated time to reach goal
+        const estimatedDays = calculateEstimatedDaysToGoal(weightDiff, calculatedCalorieGoal, maintenanceCalories)
+
+        // Update calculation details for display
+        setCalorieCalculationDetails({
+          maintenanceCalories,
+          goalCalories: calculatedCalorieGoal,
+          weightDifference: weightDiff,
+          estimatedDays,
+          bmr: Math.round(bmr),
+          tdee: maintenanceCalories,
+          dailyDeficitOrSurplus,
+        })
+
+        // Show toast notification
         toast({
-          title: "Missing profile data",
-          description: "Please complete your profile with weight, height, age, and gender information.",
+          title: "Calorie goal updated",
+          description: `Your daily calorie goal has been set to ${calculatedCalorieGoal} calories based on your target weight of ${targetWeight}kg.`,
+        })
+      } catch (error) {
+        console.error("Error calculating calorie goal:", error)
+        toast({
+          title: "Calculation error",
+          description: "There was an error calculating your calorie goal. Please try again.",
           variant: "destructive",
         })
+      } finally {
         setIsCalculating(false)
-        return
       }
-
-      // Calculate BMR using Mifflin-St Jeor Equation
-      let bmr
-      if (userData.gender === "male") {
-        bmr = 10 * userData.weight + 6.25 * userData.height - 5 * userData.age + 5
-      } else {
-        bmr = 10 * userData.weight + 6.25 * userData.height - 5 * userData.age - 161
-      }
-
-      // Calculate TDEE (Total Daily Energy Expenditure)
-      const activityLevel = userData.activityLevel || "moderate"
-      const tdee = Math.round(bmr * activityMultipliers[activityLevel])
-
-      // Store the maintenance calories for reference
-      const maintenanceCalories = tdee
-
-      // Calculate weight difference
-      const weightDiff = userData.weight - goalWeight
-
-      // Calculate calorie adjustment based on weight difference
-      // Each kg of body fat = approximately 7700 calories
-      let calculatedCalorieGoal
-
-      if (Math.abs(weightDiff) < 0.1) {
-        // If the difference is negligible, maintain current weight
-        calculatedCalorieGoal = maintenanceCalories
-      } else if (weightDiff > 0) {
-        // Need to lose weight - create a deficit
-        // Calculate deficit per day based on weight difference
-        // For each kg to lose, create a deficit of 7700 calories spread over the diet period
-
-        // Convert diet period to days
-        const periodInDays = getPeriodInDays(dietPeriod)
-
-        // Calculate total calorie deficit needed
-        const totalDeficitNeeded = weightDiff * 7700
-
-        // Calculate daily deficit
-        let dailyDeficit = Math.round(totalDeficitNeeded / periodInDays)
-
-        // Cap the daily deficit to ensure healthy weight loss (max 1000 calories/day deficit)
-        dailyDeficit = Math.min(dailyDeficit, 1000)
-
-        // Calculate goal calories
-        calculatedCalorieGoal = maintenanceCalories - dailyDeficit
-
-        // Ensure minimum healthy calorie intake
-        const minCalories = userData.gender === "male" ? 1500 : 1200
-        calculatedCalorieGoal = Math.max(calculatedCalorieGoal, minCalories)
-      } else {
-        // Need to gain weight - create a surplus
-        // Calculate surplus per day based on weight difference
-        // For each kg to gain, create a surplus of 7700 calories spread over the diet period
-
-        // Convert diet period to days
-        const periodInDays = getPeriodInDays(dietPeriod)
-
-        // Calculate total calorie surplus needed
-        const totalSurplusNeeded = Math.abs(weightDiff) * 7700
-
-        // Calculate daily surplus
-        let dailySurplus = Math.round(totalSurplusNeeded / periodInDays)
-
-        // Cap the daily surplus to ensure healthy weight gain (max 500 calories/day surplus)
-        dailySurplus = Math.min(dailySurplus, 500)
-
-        // Calculate goal calories
-        calculatedCalorieGoal = maintenanceCalories + dailySurplus
-      }
-
-      // Round to nearest 50 calories for simplicity
-      calculatedCalorieGoal = Math.round(calculatedCalorieGoal / 50) * 50
-
-      // Update calorie goal
-      setCalorieGoal(calculatedCalorieGoal)
-      console.log("Updated calorie goal to:", calculatedCalorieGoal)
-
-      // Calculate estimated time to reach goal
-      const estimatedDays = calculateEstimatedDaysToGoal(weightDiff, calculatedCalorieGoal, maintenanceCalories)
-
-      // Update calculation details for display
-      setCalorieCalculationDetails({
-        maintenanceCalories,
-        goalCalories: calculatedCalorieGoal,
-        weightDifference: weightDiff,
-        estimatedDays,
-        bmr: Math.round(bmr),
-        tdee: maintenanceCalories,
-      })
-
-      // Show toast notification
-      toast({
-        title: "Calorie goal updated",
-        description: `Your daily calorie goal has been set to ${calculatedCalorieGoal} calories based on your target weight of ${goalWeight}kg.`,
-      })
-    } catch (error) {
-      console.error("Error calculating calorie goal:", error)
-      toast({
-        title: "Calculation error",
-        description: "There was an error calculating your calorie goal. Please try again.",
-        variant: "destructive",
-      })
-    } finally {
-      setIsCalculating(false)
-    }
-  }
-
-  // Helper function to convert diet period to days
-  const getPeriodInDays = (period: string): number => {
-    switch (period) {
-      case "one-day":
-        return 1
-      case "three-days":
-        return 3
-      case "one-week":
-        return 7
-      case "two-weeks":
-        return 14
-      case "one-month":
-        return 30
-      case "two-months":
-        return 60
-      case "three-months":
-        return 90
-      case "six-months":
-        return 180
-      default:
-        return 30
-    }
-  }
+    },
+    [userData, toast],
+  )
 
   // Helper function to calculate estimated days to reach goal
   const calculateEstimatedDaysToGoal = (
@@ -401,6 +400,28 @@ export function EnhancedMealPlanGenerator({ userData }) {
 
     // Calculate days based on 7700 calories per kg
     return Math.round((Math.abs(weightDiff) * 7700) / calorieDeficitOrSurplus)
+  }
+
+  // Handle goal weight change
+  const handleGoalWeightChange = (newGoalWeight: number) => {
+    setGoalWeight(newGoalWeight)
+    setUserManuallySetGoalWeight(true)
+
+    if (userData?.weight) {
+      calculateWeightDifference(userData.weight, newGoalWeight)
+      // Directly call the calculation function with the new goal weight
+      calculateCalorieGoal(userData.weight, newGoalWeight, dietPeriod)
+    }
+  }
+
+  // Handle diet period change
+  const handleDietPeriodChange = (newPeriod: string) => {
+    setDietPeriod(newPeriod)
+
+    if (userData?.weight) {
+      // Recalculate with the new period
+      calculateCalorieGoal(userData.weight, goalWeight, newPeriod)
+    }
   }
 
   const fetchMealTemplates = async () => {
@@ -1344,7 +1365,9 @@ export function EnhancedMealPlanGenerator({ userData }) {
                             <div className="text-2xl font-bold">{userData.weight} kg</div>
                             <div className="text-sm text-gray-500 dark:text-gray-400">Current Weight</div>
                           </div>
-                          <div className="text-2xl font-bold">→</div>
+                          <div className="flex items-center text-gray-400">
+                            <ArrowRight className="h-5 w-5 mx-2" />
+                          </div>
                           <div className="text-right">
                             <div className="text-2xl font-bold">{goalWeight} kg</div>
                             <div className="text-sm text-gray-500 dark:text-gray-400">Goal Weight</div>
@@ -1437,11 +1460,11 @@ export function EnhancedMealPlanGenerator({ userData }) {
                                     : "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200"
                               }`}
                             >
-                              {calorieCalculationDetails.goalCalories < calorieCalculationDetails.maintenanceCalories
-                                ? `${calorieCalculationDetails.maintenanceCalories - calorieCalculationDetails.goalCalories} cal deficit`
-                                : calorieCalculationDetails.goalCalories > calorieCalculationDetails.maintenanceCalories
-                                  ? `${calorieCalculationDetails.goalCalories - calorieCalculationDetails.maintenanceCalories} cal surplus`
-                                  : "Maintenance"}
+                              {calorieCalculationDetails.dailyDeficitOrSurplus > 0
+                                ? weightDifference > 0
+                                  ? `${calorieCalculationDetails.dailyDeficitOrSurplus} cal deficit`
+                                  : `${calorieCalculationDetails.dailyDeficitOrSurplus} cal surplus`
+                                : "Maintenance"}
                             </div>
                           </div>
 
@@ -1463,6 +1486,14 @@ export function EnhancedMealPlanGenerator({ userData }) {
                               <span className="capitalize">{dietPeriod.replace(/-/g, " ")}</span>
                             </div>
                           </div>
+
+                          <div className="text-xs text-gray-500 dark:text-gray-400 mt-2 bg-gray-50 dark:bg-gray-800 p-2 rounded">
+                            <p>
+                              Based on the 7700 calories per kg rule, your daily calorie{" "}
+                              {weightDifference > 0 ? "deficit" : "surplus"} is calculated to achieve your goal weight
+                              in the selected time period.
+                            </p>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -1481,15 +1512,7 @@ export function EnhancedMealPlanGenerator({ userData }) {
                               value={goalWeight}
                               onChange={(e) => {
                                 const newGoalWeight = Number.parseFloat(e.target.value) || userData.weight
-                                setGoalWeight(newGoalWeight)
-                                setUserManuallySetGoalWeight(true)
-                                if (userData.weight) {
-                                  calculateWeightDifference(userData.weight, newGoalWeight)
-                                  // Force immediate recalculation
-                                  setTimeout(() => {
-                                    calculateCalorieGoal()
-                                  }, 0)
-                                }
+                                handleGoalWeightChange(newGoalWeight)
                               }}
                               min={30}
                               max={200}
@@ -1502,15 +1525,7 @@ export function EnhancedMealPlanGenerator({ userData }) {
                                 className="rounded-l-none border-l-0 px-2"
                                 onClick={() => {
                                   const newGoalWeight = goalWeight - 0.5
-                                  setGoalWeight(newGoalWeight)
-                                  setUserManuallySetGoalWeight(true)
-                                  if (userData.weight) {
-                                    calculateWeightDifference(userData.weight, newGoalWeight)
-                                    // Force immediate recalculation
-                                    setTimeout(() => {
-                                      calculateCalorieGoal()
-                                    }, 0)
-                                  }
+                                  handleGoalWeightChange(newGoalWeight)
                                 }}
                               >
                                 -
@@ -1520,15 +1535,7 @@ export function EnhancedMealPlanGenerator({ userData }) {
                                 className="rounded-l-none border-l-0 px-2"
                                 onClick={() => {
                                   const newGoalWeight = goalWeight + 0.5
-                                  setGoalWeight(newGoalWeight)
-                                  setUserManuallySetGoalWeight(true)
-                                  if (userData.weight) {
-                                    calculateWeightDifference(userData.weight, newGoalWeight)
-                                    // Force immediate recalculation
-                                    setTimeout(() => {
-                                      calculateCalorieGoal()
-                                    }, 0)
-                                  }
+                                  handleGoalWeightChange(newGoalWeight)
                                 }}
                               >
                                 +
@@ -1537,33 +1544,21 @@ export function EnhancedMealPlanGenerator({ userData }) {
                           </div>
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="calorie-goal" className="text-sm font-medium">
-                            Daily Calorie Goal
+                          <Label htmlFor="diet-period" className="text-sm font-medium">
+                            Diet Period
                           </Label>
-                          <div className="flex">
-                            <Input
-                              id="calorie-goal"
-                              type="number"
-                              value={calorieGoal}
-                              onChange={(e) => setCalorieGoal(Number.parseInt(e.target.value) || 2000)}
-                              min={1200}
-                              max={4000}
-                              step={50}
-                              className="rounded-r-none"
-                            />
-                            <Button
-                              variant="outline"
-                              className="rounded-l-none border-l-0"
-                              onClick={calculateCalorieGoal}
-                              disabled={isCalculating}
-                            >
-                              {isCalculating ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <Calculator className="h-4 w-4" />
-                              )}
-                            </Button>
-                          </div>
+                          <Select value={dietPeriod} onValueChange={handleDietPeriodChange}>
+                            <SelectTrigger id="diet-period">
+                              <SelectValue placeholder="Select diet period" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {dietPeriods.map((period) => (
+                                <SelectItem key={period.value} value={period.value}>
+                                  {period.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
                       </div>
                     </div>
@@ -1600,21 +1595,6 @@ export function EnhancedMealPlanGenerator({ userData }) {
                       <SelectItem value="weight-gain">Weight Gain</SelectItem>
                       <SelectItem value="muscle-gain">Muscle Gain</SelectItem>
                       <SelectItem value="general-health">General Health</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="diet-period">Diet Period</Label>
-                  <Select value={dietPeriod} onValueChange={setDietPeriod}>
-                    <SelectTrigger id="diet-period">
-                      <SelectValue placeholder="Select diet period" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {dietPeriods.map((period) => (
-                        <SelectItem key={period.value} value={period.value}>
-                          {period.label}
-                        </SelectItem>
-                      ))}
                     </SelectContent>
                   </Select>
                 </div>
