@@ -17,18 +17,16 @@ import {
   ChevronRight,
   Heart,
   Droplet,
-  Plus,
-  Filter,
   SortDesc,
   History,
+  Search,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardHeader, CardTitle, CardFooter, CardDescription } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Dialog,
   DialogContent,
@@ -79,7 +77,7 @@ interface FoodItem {
     sodium?: number
   }
   timestamp: number
-  category: string // breakfast, lunch, dinner, snack
+  category?: string // Optional now
   isFavorite?: boolean
 }
 
@@ -166,10 +164,10 @@ export function CalorieTracker() {
   const [diaryEntries, setDiaryEntries] = useState<DiaryEntry[]>([])
   const [waterIntake, setWaterIntake] = useState<WaterIntake[]>([])
   const [newNote, setNewNote] = useState("")
+  const [showNoteDialog, setShowNoteDialog] = useState(false)
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
   const [isUserLoading, setIsUserLoading] = useState(true)
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split("T")[0])
-  const [selectedCategory, setSelectedCategory] = useState<string>("all")
   const [activeTab, setActiveTab] = useState<"diary" | "summary" | "goals">("diary")
   const [favoriteFoods, setFavoriteFoods] = useState<FoodItem[]>([])
   const [recentFoods, setRecentFoods] = useState<FoodItem[]>([])
@@ -177,11 +175,12 @@ export function CalorieTracker() {
   const [showWaterDialog, setShowWaterDialog] = useState(false)
   const [waterAmount, setWaterAmount] = useState(250)
   const [sortOrder, setSortOrder] = useState<"time" | "category">("time")
+  const [showRecentFoods, setShowRecentFoods] = useState(false)
+  const [showFavoriteFoods, setShowFavoriteFoods] = useState(false)
 
   // Refs
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
-  const setSearchInputRef = useRef<(input: HTMLInputElement | null) => void>(() => {})
 
   // Calculate daily totals from diary entries
   const dailyTotals = useMemo(() => {
@@ -258,17 +257,9 @@ export function CalorieTracker() {
     }
   }, [dailyTotals])
 
-  // Filter diary entries by category
-  const filteredDiaryEntries = useMemo(() => {
-    let entries = [...diaryEntries]
-
-    // Apply category filter
-    if (selectedCategory !== "all") {
-      entries = entries.filter((entry) => {
-        if (isNoteItem(entry)) return selectedCategory === "notes"
-        return (entry as FoodItem).category === selectedCategory
-      })
-    }
+  // Sort diary entries
+  const sortedDiaryEntries = useMemo(() => {
+    const entries = [...diaryEntries]
 
     // Apply sorting
     if (sortOrder === "time") {
@@ -277,55 +268,19 @@ export function CalorieTracker() {
       entries.sort((a, b) => {
         if (isNoteItem(a) && isFoodItem(b)) return 1
         if (isFoodItem(a) && isNoteItem(b)) return -1
-        if (isFoodItem(a) && isFoodItem(b)) {
-          const categoryOrder = { breakfast: 1, lunch: 2, dinner: 3, snack: 4 }
-          return categoryOrder[a.category] - categoryOrder[b.category]
-        }
         return 0
       })
     }
 
     return entries
-  }, [diaryEntries, selectedCategory, sortOrder])
+  }, [diaryEntries, sortOrder])
 
-  // Group entries by meal category for summary view
-  const entriesByCategory = useMemo(() => {
-    const grouped = {
-      breakfast: [] as FoodItem[],
-      lunch: [] as FoodItem[],
-      dinner: [] as FoodItem[],
-      snack: [] as FoodItem[],
+  // Sync daily goals with user profile data
+  useEffect(() => {
+    if (userData?.dailyCalorieIntake && userData.dailyCalorieIntake !== dailyGoals.calories) {
+      updateDailyGoals({ calories: userData.dailyCalorieIntake })
     }
-
-    diaryEntries.forEach((entry) => {
-      if (isFoodItem(entry) && entry.category in grouped) {
-        grouped[entry.category as keyof typeof grouped].push(entry)
-      }
-    })
-
-    return grouped
-  }, [diaryEntries])
-
-  // Calculate totals by category
-  const totalsByCategory = useMemo(() => {
-    const result = {
-      breakfast: { calories: 0, protein: 0, carbs: 0, fat: 0 },
-      lunch: { calories: 0, protein: 0, carbs: 0, fat: 0 },
-      dinner: { calories: 0, protein: 0, carbs: 0, fat: 0 },
-      snack: { calories: 0, protein: 0, carbs: 0, fat: 0 },
-    }
-
-    Object.entries(entriesByCategory).forEach(([category, items]) => {
-      items.forEach((item) => {
-        result[category as keyof typeof result].calories += item.nutrition.calories * item.quantity
-        result[category as keyof typeof result].protein += item.nutrition.protein * item.quantity
-        result[category as keyof typeof result].carbs += item.nutrition.carbs * item.quantity
-        result[category as keyof typeof result].fat += item.nutrition.fat * item.quantity
-      })
-    })
-
-    return result
-  }, [entriesByCategory])
+  }, [userData?.dailyCalorieIntake])
 
   // Load user's daily goals and diary entries from Firestore
   useEffect(() => {
@@ -349,7 +304,7 @@ export function CalorieTracker() {
         } else {
           // Create default goals if they don't exist
           const defaultGoals = {
-            calories: 2000,
+            calories: userData?.dailyCalorieIntake || 2000,
             protein: 100,
             carbs: 250,
             fat: 70,
@@ -379,7 +334,7 @@ export function CalorieTracker() {
     }
 
     loadUserData()
-  }, [user?.uid, selectedDate])
+  }, [user?.uid, selectedDate, userData?.dailyCalorieIntake])
 
   // Load diary entries for a specific date
   const loadDiaryEntriesForDate = async (date: string) => {
@@ -1022,8 +977,6 @@ export function CalorieTracker() {
       },
       nutrition,
       timestamp: Date.now(),
-      category:
-        selectedCategory !== "all" ? selectedCategory : determineFoodCategory(selectedFood.name, new Date().getHours()),
       isFavorite: selectedFood.isFavorite || false,
     }
 
@@ -1120,57 +1073,6 @@ export function CalorieTracker() {
     }
   }
 
-  // Determine food category based on name and time of day
-  const determineFoodCategory = (foodName: string, hour: number): string => {
-    const name = foodName.toLowerCase()
-
-    // Check for specific food types
-    if (
-      name.includes("breakfast") ||
-      name.includes("cereal") ||
-      name.includes("oatmeal") ||
-      name.includes("pancake") ||
-      name.includes("waffle") ||
-      name.includes("toast") ||
-      name.includes("idli") ||
-      name.includes("dosa") ||
-      name.includes("upma") ||
-      name.includes("poha")
-    ) {
-      return "breakfast"
-    }
-
-    if (name.includes("dinner") || name.includes("supper")) {
-      return "dinner"
-    }
-
-    if (name.includes("lunch")) {
-      return "lunch"
-    }
-
-    if (
-      name.includes("snack") ||
-      name.includes("cookie") ||
-      name.includes("chips") ||
-      name.includes("nuts") ||
-      name.includes("fruit") ||
-      name.includes("yogurt")
-    ) {
-      return "snack"
-    }
-
-    // Determine by time of day
-    if (hour >= 5 && hour < 11) {
-      return "breakfast"
-    } else if (hour >= 11 && hour < 15) {
-      return "lunch"
-    } else if (hour >= 15 && hour < 18) {
-      return "snack"
-    } else {
-      return "dinner"
-    }
-  }
-
   // Calculate nutrition value based on serving size
   const calculateNutritionValue = (food: any, nutrient: string, amount: number) => {
     // Default per 100g
@@ -1210,11 +1112,12 @@ export function CalorieTracker() {
     // Add the new note to the diary entries
     setDiaryEntries((prev) => {
       const newEntries = [...prev, note].sort((a, b) => a.timestamp - b.timestamp)
-      console.log("Updated diary entries with note:", newEntries)
+      console.log("Updated diary entries:", newEntries)
       return newEntries
     })
 
     setNewNote("")
+    setShowNoteDialog(false)
   }
 
   // Add water intake
@@ -1334,14 +1237,14 @@ export function CalorieTracker() {
   }
 
   return (
-    <div className="flex flex-col space-y-6">
-      {/* Date Navigation */}
+    <div className="flex flex-col space-y-4">
+      {/* Top Section: Date Navigation, Search, and Macro Summary */}
       <Card className="bg-gradient-to-br from-gray-900 to-gray-800 border-gray-700">
-        <CardContent className="pt-4">
-          <div className="flex items-center justify-between">
+        <CardContent className="p-4">
+          {/* Date Navigation */}
+          <div className="flex items-center justify-between mb-4">
             <Button variant="ghost" onClick={goToPreviousDay} className="text-white hover:bg-gray-800">
               <ChevronLeft className="h-5 w-5" />
-              <span className="sr-only md:not-sr-only md:ml-2">Previous Day</span>
             </Button>
 
             <div className="flex flex-col items-center">
@@ -1358,901 +1261,583 @@ export function CalorieTracker() {
             </div>
 
             <Button variant="ghost" onClick={goToNextDay} className="text-white hover:bg-gray-800">
-              <span className="sr-only md:not-sr-only md:mr-2">Next Day</span>
               <ChevronRight className="h-5 w-5" />
             </Button>
           </div>
 
-          {!isToday(parseISO(selectedDate)) && (
-            <div className="mt-2 flex justify-center">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={goToToday}
-                className="text-orange-500 border-orange-500 hover:bg-orange-950"
-              >
-                Go to Today
+          {/* Macro Summary */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+            <div className="bg-gray-800 p-2 rounded-md">
+              <div className="flex justify-between items-center">
+                <span className="text-gray-400 text-sm">Calories</span>
+                <span className={`text-sm ${remaining.calories < 0 ? "text-red-500" : "text-green-500"}`}>
+                  {Math.round(dailyTotals.calories)} / {dailyGoals.calories}
+                </span>
+              </div>
+              <Progress
+                value={percentages.calories}
+                className="h-2 mt-1"
+                indicatorClassName={remaining.calories < 0 ? "bg-red-500" : "bg-orange-500"}
+              />
+            </div>
+            <div className="bg-gray-800 p-2 rounded-md">
+              <div className="flex justify-between items-center">
+                <span className="text-gray-400 text-sm">Protein</span>
+                <span className="text-sm text-white">
+                  {Math.round(dailyTotals.protein)}g / {dailyGoals.protein}g
+                </span>
+              </div>
+              <Progress value={percentages.protein} className="h-2 mt-1" indicatorClassName="bg-blue-500" />
+            </div>
+            <div className="bg-gray-800 p-2 rounded-md">
+              <div className="flex justify-between items-center">
+                <span className="text-gray-400 text-sm">Carbs</span>
+                <span className="text-sm text-white">
+                  {Math.round(dailyTotals.carbs)}g / {dailyGoals.carbs}g
+                </span>
+              </div>
+              <Progress value={percentages.carbs} className="h-2 mt-1" indicatorClassName="bg-green-500" />
+            </div>
+            <div className="bg-gray-800 p-2 rounded-md">
+              <div className="flex justify-between items-center">
+                <span className="text-gray-400 text-sm">Fat</span>
+                <span className="text-sm text-white">
+                  {Math.round(dailyTotals.fat)}g / {dailyGoals.fat}g
+                </span>
+              </div>
+              <Progress value={percentages.fat} className="h-2 mt-1" indicatorClassName="bg-yellow-500" />
+            </div>
+          </div>
+
+          {/* Search Bar and Quick Actions */}
+          <div className="flex flex-col md:flex-row gap-2">
+            <div className="relative flex-grow">
+              <div className="relative">
+                <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  type="text"
+                  placeholder="Search for a food item..."
+                  value={searchTerm}
+                  onChange={handleSearchChange}
+                  className="bg-gray-800 border-gray-700 text-white pl-8"
+                  ref={searchInputRef}
+                />
+              </div>
+
+              {showSearchResults && searchResults.length > 0 && (
+                <div className="absolute z-20 mt-1 w-full bg-gray-900 border border-gray-700 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                  <div className="flex justify-between items-center p-2 border-b border-gray-700">
+                    <span className="text-sm font-medium text-white">Search Results</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowSearchResults(false)}
+                      className="h-6 w-6 p-0 text-white"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <ul>
+                    {searchResults.map((food) => (
+                      <li
+                        key={`${food.source}-${food.id}`}
+                        className="px-3 py-2 hover:bg-gray-800 cursor-pointer border-b border-gray-800 text-white"
+                        onClick={() => handleFoodSelect(food)}
+                      >
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <div className="font-medium">{food.name || food.foodName || food.description}</div>
+                            <div className="text-xs text-gray-400">
+                              {food.source === "ifct"
+                                ? "Indian Food Database"
+                                : food.source === "custom"
+                                  ? "Custom Foods"
+                                  : food.source === "template"
+                                    ? "Meal Template"
+                                    : food.source === "default"
+                                      ? "Default Foods"
+                                      : "USDA"}
+                            </div>
+                          </div>
+                          {food.isFavorite && <Heart className="h-4 w-4 text-red-500 fill-red-500" />}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {showSearchResults && searchResults.length === 0 && isSearching && (
+                <div className="absolute z-20 mt-1 w-full bg-gray-900 border border-gray-700 rounded-md shadow-lg p-3 text-white">
+                  Searching for "{searchTerm}"...
+                </div>
+              )}
+
+              {showSearchResults && searchResults.length === 0 && !isSearching && searchTerm.trim() !== "" && (
+                <div className="absolute z-20 mt-1 w-full bg-gray-900 border border-gray-700 rounded-md shadow-lg p-3 text-white">
+                  No foods found. Try a different search term.
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-2">
+              <Button className="bg-orange-600 hover:bg-orange-700 text-white" onClick={() => setShowNoteDialog(true)}>
+                <FileText className="h-4 w-4 mr-1" />
+                Note
               </Button>
+              <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={() => setShowWaterDialog(true)}>
+                <Droplet className="h-4 w-4 mr-1" />
+                Water
+              </Button>
+            </div>
+          </div>
+
+          {/* Quick Access Buttons */}
+          <div className="flex justify-between mt-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowRecentFoods(!showRecentFoods)}
+              className="text-white border-gray-700"
+            >
+              <History className="h-4 w-4 mr-1" />
+              Recent
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowFavoriteFoods(!showFavoriteFoods)}
+              className="text-white border-gray-700"
+            >
+              <Heart className="h-4 w-4 mr-1" />
+              Favorites
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSortOrder(sortOrder === "time" ? "category" : "time")}
+              className="text-white border-gray-700"
+            >
+              <SortDesc className="h-4 w-4 mr-1" />
+              {sortOrder === "time" ? "By Time" : "By Type"}
+            </Button>
+          </div>
+
+          {/* Recent Foods Panel */}
+          {showRecentFoods && recentFoods.length > 0 && (
+            <div className="mt-3 bg-gray-800 p-2 rounded-md">
+              <div className="flex justify-between items-center mb-2">
+                <h3 className="text-white text-sm font-medium">Recent Foods</h3>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowRecentFoods(false)}
+                  className="h-6 w-6 p-0 text-gray-400"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              <ScrollArea className="h-24">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {recentFoods.map((food) => (
+                    <Button
+                      key={food.id}
+                      variant="ghost"
+                      size="sm"
+                      className="justify-start text-left text-white hover:bg-gray-700 h-auto py-1"
+                      onClick={() => handleFoodSelect(food)}
+                    >
+                      <div className="truncate flex-1">
+                        {food.name}
+                        <span className="text-xs text-gray-400 ml-1">({Math.round(food.nutrition.calories)} kcal)</span>
+                      </div>
+                    </Button>
+                  ))}
+                </div>
+              </ScrollArea>
+            </div>
+          )}
+
+          {/* Favorite Foods Panel */}
+          {showFavoriteFoods && favoriteFoods.length > 0 && (
+            <div className="mt-3 bg-gray-800 p-2 rounded-md">
+              <div className="flex justify-between items-center mb-2">
+                <h3 className="text-white text-sm font-medium">Favorite Foods</h3>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowFavoriteFoods(false)}
+                  className="h-6 w-6 p-0 text-gray-400"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              <ScrollArea className="h-24">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {favoriteFoods.map((food) => (
+                    <Button
+                      key={food.id}
+                      variant="ghost"
+                      size="sm"
+                      className="justify-start text-left text-white hover:bg-gray-700 h-auto py-1"
+                      onClick={() => handleFoodSelect(food)}
+                    >
+                      <div className="truncate flex-1 flex items-center">
+                        <Heart className="h-3 w-3 mr-1 text-red-500 fill-red-500" />
+                        {food.name}
+                        <span className="text-xs text-gray-400 ml-1">({Math.round(food.nutrition.calories)} kcal)</span>
+                      </div>
+                    </Button>
+                  ))}
+                </div>
+              </ScrollArea>
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Main Content Tabs */}
-      <Tabs defaultValue="diary" onValueChange={(value) => setActiveTab(value as any)}>
-        <TabsList className="bg-gray-800 border-gray-700 grid grid-cols-3">
-          <TabsTrigger value="diary" className="data-[state=active]:bg-orange-600 text-white">
-            Food Diary
-          </TabsTrigger>
-          <TabsTrigger value="summary" className="data-[state=active]:bg-orange-600 text-white">
-            Summary
-          </TabsTrigger>
-          <TabsTrigger value="goals" className="data-[state=active]:bg-orange-600 text-white">
-            Goals
-          </TabsTrigger>
-        </TabsList>
-
-        {/* Diary Tab */}
-        <TabsContent value="diary" className="space-y-6">
-          {/* Daily Summary - Sticky Header */}
-          <div className="sticky top-0 z-10 bg-background pt-4 pb-2 shadow-md">
-            <Card className="bg-gradient-to-br from-gray-900 to-gray-800 border-gray-700">
-              <CardHeader className="pb-2">
-                <CardTitle className="flex justify-between items-center text-white">
-                  <span>Daily Summary</span>
-                  <span className={`text-xl ${remaining.calories < 0 ? "text-red-500" : "text-green-500"}`}>
-                    {remaining.calories < 0 ? "-" : ""}
-                    {Math.abs(Math.round(remaining.calories))} kcal remaining
-                  </span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-white">
-                      <span>Calories</span>
-                      <span>
-                        {Math.round(dailyTotals.calories)} / {dailyGoals.calories}
-                      </span>
-                    </div>
-                    <Progress
-                      value={percentages.calories}
-                      className="h-2"
-                      indicatorClassName={remaining.calories < 0 ? "bg-red-500" : "bg-orange-500"}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-white">
-                      <span>Protein</span>
-                      <span>
-                        {Math.round(dailyTotals.protein)}g / {dailyGoals.protein}g
-                      </span>
-                    </div>
-                    <Progress value={percentages.protein} className="h-2" indicatorClassName="bg-blue-500" />
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-white">
-                      <span>Carbs</span>
-                      <span>
-                        {Math.round(dailyTotals.carbs)}g / {dailyGoals.carbs}g
-                      </span>
-                    </div>
-                    <Progress value={percentages.carbs} className="h-2" indicatorClassName="bg-green-500" />
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-white">
-                      <span>Fat</span>
-                      <span>
-                        {Math.round(dailyTotals.fat)}g / {dailyGoals.fat}g
-                      </span>
-                    </div>
-                    <Progress value={percentages.fat} className="h-2" indicatorClassName="bg-yellow-500" />
-                  </div>
-                </div>
-
-                {/* Water Intake */}
-                <div className="mt-4 flex items-center justify-between">
-                  <div className="flex items-center">
-                    <Droplet className="h-5 w-5 text-blue-500 mr-2" />
-                    <span className="text-white">
-                      Water: {totalWaterIntake}ml / {dailyGoals.water || 2000}ml
-                    </span>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowWaterDialog(true)}
-                    className="text-blue-500 border-blue-500 hover:bg-blue-950"
-                  >
-                    <Plus className="h-4 w-4 mr-1" />
-                    Add Water
-                  </Button>
-                </div>
-                <Progress value={percentages.water} className="h-2 mt-2" indicatorClassName="bg-blue-500" />
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Quick Add Buttons */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Button
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-              onClick={() => {
-                setSelectedCategory("breakfast")
-                setSearchInputRef.current?.focus()
-              }}
-            >
-              <Plus className="h-4 w-4 mr-1" />
-              Breakfast
-            </Button>
-            <Button
-              className="bg-green-600 hover:bg-green-700 text-white"
-              onClick={() => {
-                setSelectedCategory("lunch")
-                setSearchInputRef.current?.focus()
-              }}
-            >
-              <Plus className="h-4 w-4 mr-1" />
-              Lunch
-            </Button>
-            <Button
-              className="bg-purple-600 hover:bg-purple-700 text-white"
-              onClick={() => {
-                setSelectedCategory("dinner")
-                setSearchInputRef.current?.focus()
-              }}
-            >
-              <Plus className="h-4 w-4 mr-1" />
-              Dinner
-            </Button>
-            <Button
-              className="bg-yellow-600 hover:bg-yellow-700 text-white"
-              onClick={() => {
-                setSelectedCategory("snack")
-                setSearchInputRef.current?.focus()
-              }}
-            >
-              <Plus className="h-4 w-4 mr-1" />
-              Snack
-            </Button>
-          </div>
-
-          {/* Food Search Section */}
-          <Card className="bg-gradient-to-br from-gray-900 to-gray-800 border-gray-700">
-            <CardHeader>
-              <CardTitle className="text-white">Add Food</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex flex-col md:flex-row gap-2">
-                  <div className="relative flex-grow">
-                    <Input
-                      type="text"
-                      placeholder="Search for a food item..."
-                      value={searchTerm}
-                      onChange={handleSearchChange}
-                      className="bg-gray-800 border-gray-700 text-white"
-                      ref={searchInputRef}
-                    />
-
-                    {showSearchResults && searchResults.length > 0 && (
-                      <div className="absolute z-20 mt-1 w-full bg-gray-900 border border-gray-700 rounded-md shadow-lg max-h-60 overflow-y-auto">
-                        <div className="flex justify-between items-center p-2 border-b border-gray-700">
-                          <span className="text-sm font-medium text-white">Search Results</span>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setShowSearchResults(false)}
-                            className="h-6 w-6 p-0 text-white"
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
+      {/* Food Diary List */}
+      <Card className="bg-gradient-to-br from-gray-900 to-gray-800 border-gray-700">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-white flex justify-between items-center">
+            <span>Food Diary</span>
+            <span className={`text-sm ${remaining.calories < 0 ? "text-red-500" : "text-green-500"}`}>
+              {remaining.calories < 0 ? "Over by " : ""}
+              {Math.abs(Math.round(remaining.calories))} kcal
+            </span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {sortedDiaryEntries.length === 0 ? (
+            <div className="text-center py-6 text-gray-400">No entries yet. Add foods or notes to get started.</div>
+          ) : (
+            <div className="space-y-3">
+              {sortedDiaryEntries.map((entry) => {
+                if (isFoodItem(entry)) {
+                  // Render food item
+                  return (
+                    <div key={entry.id} className="bg-gray-800 p-3 rounded-md flex justify-between items-center">
+                      <div>
+                        <div className="font-medium text-white flex items-center">
+                          {entry.name}
+                          {entry.isFavorite && <Heart className="h-3 w-3 ml-1 text-red-500 fill-red-500" />}
                         </div>
-                        <ul>
-                          {searchResults.map((food) => (
-                            <li
-                              key={`${food.source}-${food.id}`}
-                              className="px-3 py-2 hover:bg-gray-800 cursor-pointer border-b border-gray-800 text-white"
-                              onClick={() => handleFoodSelect(food)}
+                        <div className="text-sm text-gray-400">
+                          {entry.quantity} × {entry.servingSize.amount}
+                          {entry.servingSize.unit}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="text-right">
+                          <div className="text-white">{Math.round(entry.nutrition.calories * entry.quantity)} kcal</div>
+                          <div className="text-xs text-gray-400">
+                            P: {Math.round(entry.nutrition.protein * entry.quantity)}g | C:{" "}
+                            {Math.round(entry.nutrition.carbs * entry.quantity)}g | F:{" "}
+                            {Math.round(entry.nutrition.fat * entry.quantity)}g
+                          </div>
+                        </div>
+                        <div className="flex">
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => toggleFavorite(entry)}
+                                  className="h-8 w-8 p-0 text-gray-400 hover:text-red-500 hover:bg-gray-700"
+                                >
+                                  <Heart className={`h-4 w-4 ${entry.isFavorite ? "text-red-500 fill-red-500" : ""}`} />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>{entry.isFavorite ? "Remove from favorites" : "Add to favorites"}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => removeEntryFromDiary(entry.id)}
+                                  className="h-8 w-8 p-0 text-gray-400 hover:text-red-500 hover:bg-gray-700"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Remove food</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                } else if (isNoteItem(entry)) {
+                  // Render note item
+                  return (
+                    <div key={entry.id} className="bg-gray-700 p-3 rounded-md border-l-4 border-orange-500">
+                      {editingNoteId === entry.id ? (
+                        <div className="flex flex-col gap-2">
+                          <Textarea
+                            defaultValue={entry.content}
+                            className="bg-gray-800 border-gray-700 text-white"
+                            rows={2}
+                            id={`note-edit-${entry.id}`}
+                          />
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setEditingNoteId(null)}
+                              className="border-gray-600 text-white"
                             >
-                              <div className="flex justify-between items-center">
-                                <div>
-                                  <div className="font-medium">{food.name || food.foodName || food.description}</div>
-                                  <div className="text-xs text-gray-400">
-                                    {food.source === "ifct"
-                                      ? "Indian Food Database"
-                                      : food.source === "custom"
-                                        ? "Custom Foods"
-                                        : food.source === "template"
-                                          ? "Meal Template"
-                                          : food.source === "default"
-                                            ? "Default Foods"
-                                            : "USDA"}
-                                  </div>
-                                </div>
-                                {food.isFavorite && <Heart className="h-4 w-4 text-red-500 fill-red-500" />}
-                              </div>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
+                              Cancel
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={() => {
+                                const textarea = document.getElementById(`note-edit-${entry.id}`) as HTMLTextAreaElement
+                                if (textarea) {
+                                  saveEditedNote(entry.id, textarea.value)
+                                }
+                              }}
+                              className="bg-orange-600 hover:bg-orange-700"
+                            >
+                              <Save className="h-4 w-4 mr-1" />
+                              Save
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex justify-between items-start">
+                          <div className="whitespace-pre-wrap text-white">{entry.content}</div>
+                          <div className="flex gap-1">
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => startEditingNote(entry.id)}
+                                    className="h-8 w-8 p-0 text-gray-300 hover:text-white hover:bg-gray-600"
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Edit note</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => removeEntryFromDiary(entry.id)}
+                                    className="h-8 w-8 p-0 text-gray-300 hover:text-red-500 hover:bg-gray-700"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Remove note</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                }
+                return null
+              })}
+            </div>
+          )}
 
-                    {showSearchResults && searchResults.length === 0 && isSearching && (
-                      <div className="absolute z-20 mt-1 w-full bg-gray-900 border border-gray-700 rounded-md shadow-lg p-3 text-white">
-                        Searching for "{searchTerm}"...
-                      </div>
-                    )}
-
-                    {showSearchResults && searchResults.length === 0 && !isSearching && searchTerm.trim() !== "" && (
-                      <div className="absolute z-20 mt-1 w-full bg-gray-900 border border-gray-700 rounded-md shadow-lg p-3 text-white">
-                        No foods found. Try a different search term.
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Meal Category Selector */}
-                <div>
-                  <label className="block text-sm mb-1 text-white">Meal Category</label>
-                  <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                    <SelectTrigger className="bg-gray-800 border-gray-700 text-white">
-                      <SelectValue placeholder="Select meal category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Categories</SelectItem>
-                      <SelectItem value="breakfast">Breakfast</SelectItem>
-                      <SelectItem value="lunch">Lunch</SelectItem>
-                      <SelectItem value="dinner">Dinner</SelectItem>
-                      <SelectItem value="snack">Snack</SelectItem>
-                      <SelectItem value="notes">Notes</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Recent Foods */}
-                {recentFoods.length > 0 && (
-                  <div className="mt-4">
-                    <h3 className="text-white font-medium mb-2 flex items-center">
-                      <History className="h-4 w-4 mr-1" />
-                      Recent Foods
-                    </h3>
-                    <ScrollArea className="h-24 rounded-md border border-gray-700">
-                      <div className="p-2 grid grid-cols-1 md:grid-cols-2 gap-2">
-                        {recentFoods.map((food) => (
-                          <Button
-                            key={food.id}
-                            variant="outline"
-                            size="sm"
-                            className="justify-start text-left text-white border-gray-700 hover:bg-gray-800"
-                            onClick={() => handleFoodSelect(food)}
-                          >
-                            <div className="truncate">
-                              {food.name}
-                              <span className="text-xs text-gray-400 ml-1">
-                                ({Math.round(food.nutrition.calories)} kcal)
-                              </span>
-                            </div>
-                          </Button>
-                        ))}
-                      </div>
-                    </ScrollArea>
-                  </div>
-                )}
-
-                {/* Favorite Foods */}
-                {favoriteFoods.length > 0 && (
-                  <div className="mt-4">
-                    <h3 className="text-white font-medium mb-2 flex items-center">
-                      <Heart className="h-4 w-4 mr-1 text-red-500" />
-                      Favorite Foods
-                    </h3>
-                    <ScrollArea className="h-24 rounded-md border border-gray-700">
-                      <div className="p-2 grid grid-cols-1 md:grid-cols-2 gap-2">
-                        {favoriteFoods.map((food) => (
-                          <Button
-                            key={food.id}
-                            variant="outline"
-                            size="sm"
-                            className="justify-start text-left text-white border-gray-700 hover:bg-gray-800"
-                            onClick={() => handleFoodSelect(food)}
-                          >
-                            <div className="truncate flex items-center">
-                              <Heart className="h-3 w-3 mr-1 text-red-500 fill-red-500" />
-                              {food.name}
-                              <span className="text-xs text-gray-400 ml-1">
-                                ({Math.round(food.nutrition.calories)} kcal)
-                              </span>
-                            </div>
-                          </Button>
-                        ))}
-                      </div>
-                    </ScrollArea>
-                  </div>
-                )}
-
-                {/* Add Note Section */}
-                <div className="mt-4">
-                  <label className="block text-sm mb-1 text-white">Add Note</label>
-                  <div className="flex items-start gap-2">
-                    <Textarea
-                      placeholder="Add a note (e.g., 'Feeling hungry today', 'Skipped breakfast')"
-                      value={newNote}
-                      onChange={(e) => setNewNote(e.target.value)}
-                      className="bg-gray-800 border-gray-700 text-white flex-grow"
-                      rows={2}
-                    />
+          {/* Water Intake Log */}
+          {waterIntake.length > 0 && (
+            <div className="mt-6">
+              <h3 className="text-white font-medium mb-2 flex items-center">
+                <Droplet className="h-4 w-4 mr-1 text-blue-500" />
+                Water Intake
+              </h3>
+              <div className="space-y-2">
+                {waterIntake.map((entry) => (
+                  <div
+                    key={entry.timestamp}
+                    className="bg-gray-800 p-2 rounded-md flex justify-between items-center border-l-4 border-blue-500"
+                  >
+                    <div>
+                      <div className="text-white">{entry.amount}ml</div>
+                      <div className="text-xs text-gray-400">{format(new Date(entry.timestamp), "h:mm a")}</div>
+                    </div>
                     <Button
-                      onClick={addNoteToDiary}
-                      className="bg-orange-600 hover:bg-orange-700 mt-1"
-                      disabled={!newNote.trim()}
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeWaterEntry(entry.timestamp)}
+                      className="h-8 w-8 p-0 text-gray-400 hover:text-red-500 hover:bg-gray-700"
                     >
-                      <FileText className="h-4 w-4 mr-1" />
-                      Add Note
+                      <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Food Diary */}
-          <Card className="bg-gradient-to-br from-gray-900 to-gray-800 border-gray-700">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-white">Food Diary</CardTitle>
-              <div className="flex items-center gap-2">
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setSortOrder(sortOrder === "time" ? "category" : "time")}
-                        className="h-8 w-8 p-0 text-white border-gray-700"
-                      >
-                        <SortDesc className="h-4 w-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Sort by {sortOrder === "time" ? "category" : "time"}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setSelectedCategory("all")}
-                        className="h-8 w-8 p-0 text-white border-gray-700"
-                      >
-                        <Filter className="h-4 w-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Reset filters</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {/* Category Filter */}
-              <div className="mb-4">
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    variant={selectedCategory === "all" ? "default" : "outline"}
-                    onClick={() => setSelectedCategory("all")}
-                    className={selectedCategory === "all" ? "bg-orange-600" : "text-white border-gray-700"}
-                    size="sm"
-                  >
-                    All
-                  </Button>
-                  <Button
-                    variant={selectedCategory === "breakfast" ? "default" : "outline"}
-                    onClick={() => setSelectedCategory("breakfast")}
-                    className={selectedCategory === "breakfast" ? "bg-blue-600" : "text-white border-gray-700"}
-                    size="sm"
-                  >
-                    Breakfast
-                  </Button>
-                  <Button
-                    variant={selectedCategory === "lunch" ? "default" : "outline"}
-                    onClick={() => setSelectedCategory("lunch")}
-                    className={selectedCategory === "lunch" ? "bg-green-600" : "text-white border-gray-700"}
-                    size="sm"
-                  >
-                    Lunch
-                  </Button>
-                  <Button
-                    variant={selectedCategory === "dinner" ? "default" : "outline"}
-                    onClick={() => setSelectedCategory("dinner")}
-                    className={selectedCategory === "dinner" ? "bg-purple-600" : "text-white border-gray-700"}
-                    size="sm"
-                  >
-                    Dinner
-                  </Button>
-                  <Button
-                    variant={selectedCategory === "snack" ? "default" : "outline"}
-                    onClick={() => setSelectedCategory("snack")}
-                    className={selectedCategory === "snack" ? "bg-yellow-600" : "text-white border-gray-700"}
-                    size="sm"
-                  >
-                    Snack
-                  </Button>
-                  <Button
-                    variant={selectedCategory === "notes" ? "default" : "outline"}
-                    onClick={() => setSelectedCategory("notes")}
-                    className={selectedCategory === "notes" ? "bg-gray-600" : "text-white border-gray-700"}
-                    size="sm"
-                  >
-                    Notes
-                  </Button>
-                </div>
-              </div>
-
-              {filteredDiaryEntries.length === 0 ? (
-                <div className="text-center py-6 text-gray-400">No entries yet. Add foods or notes to get started.</div>
-              ) : (
-                <div className="space-y-4">
-                  {filteredDiaryEntries.map((entry) => {
-                    if (isFoodItem(entry)) {
-                      // Render food item
-                      const categoryColor =
-                        entry.category === "breakfast"
-                          ? "border-blue-500"
-                          : entry.category === "lunch"
-                            ? "border-green-500"
-                            : entry.category === "dinner"
-                              ? "border-purple-500"
-                              : entry.category === "snack"
-                                ? "border-yellow-500"
-                                : "border-gray-500"
-
-                      return (
-                        <div
-                          key={entry.id}
-                          className={`bg-gray-800 p-3 rounded-md flex justify-between items-center border-l-4 ${categoryColor}`}
-                        >
-                          <div>
-                            <div className="font-medium text-white flex items-center">
-                              {entry.name}
-                              {entry.isFavorite && <Heart className="h-3 w-3 ml-1 text-red-500 fill-red-500" />}
-                            </div>
-                            <div className="text-sm text-gray-400">
-                              {entry.quantity} × {entry.servingSize.amount}
-                              {entry.servingSize.unit}
-                              {entry.category && (
-                                <span className="ml-2">
-                                  • {entry.category.charAt(0).toUpperCase() + entry.category.slice(1)}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <div className="text-right">
-                              <div className="text-white">
-                                {Math.round(entry.nutrition.calories * entry.quantity)} kcal
-                              </div>
-                              <div className="text-xs text-gray-400">
-                                P: {Math.round(entry.nutrition.protein * entry.quantity)}g | C:{" "}
-                                {Math.round(entry.nutrition.carbs * entry.quantity)}g | F:{" "}
-                                {Math.round(entry.nutrition.fat * entry.quantity)}g
-                              </div>
-                            </div>
-                            <div className="flex">
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => toggleFavorite(entry)}
-                                      className="h-8 w-8 p-0 text-gray-400 hover:text-red-500 hover:bg-gray-700"
-                                    >
-                                      <Heart
-                                        className={`h-4 w-4 ${entry.isFavorite ? "text-red-500 fill-red-500" : ""}`}
-                                      />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p>{entry.isFavorite ? "Remove from favorites" : "Add to favorites"}</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => removeEntryFromDiary(entry.id)}
-                                      className="h-8 w-8 p-0 text-gray-400 hover:text-red-500 hover:bg-gray-700"
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p>Remove food</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            </div>
-                          </div>
-                        </div>
-                      )
-                    } else if (isNoteItem(entry)) {
-                      // Render note item
-                      return (
-                        <div key={entry.id} className="bg-gray-700 p-3 rounded-md border-l-4 border-orange-500">
-                          {editingNoteId === entry.id ? (
-                            <div className="flex flex-col gap-2">
-                              <Textarea
-                                defaultValue={entry.content}
-                                className="bg-gray-800 border-gray-700 text-white"
-                                rows={2}
-                                id={`note-edit-${entry.id}`}
-                              />
-                              <div className="flex justify-end gap-2">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => setEditingNoteId(null)}
-                                  className="border-gray-600 text-white"
-                                >
-                                  Cancel
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  onClick={() => {
-                                    const textarea = document.getElementById(
-                                      `note-edit-${entry.id}`,
-                                    ) as HTMLTextAreaElement
-                                    if (textarea) {
-                                      saveEditedNote(entry.id, textarea.value)
-                                    }
-                                  }}
-                                  className="bg-orange-600 hover:bg-orange-700"
-                                >
-                                  <Save className="h-4 w-4 mr-1" />
-                                  Save
-                                </Button>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="flex justify-between items-start">
-                              <div className="whitespace-pre-wrap text-white">{entry.content}</div>
-                              <div className="flex gap-1">
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => startEditingNote(entry.id)}
-                                        className="h-8 w-8 p-0 text-gray-300 hover:text-white hover:bg-gray-600"
-                                      >
-                                        <Edit className="h-4 w-4" />
-                                      </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                      <p>Edit note</p>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => removeEntryFromDiary(entry.id)}
-                                        className="h-8 w-8 p-0 text-gray-300 hover:text-red-500 hover:bg-gray-700"
-                                      >
-                                        <Trash2 className="h-4 w-4" />
-                                      </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                      <p>Remove note</p>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )
-                    }
-                    return null
-                  })}
-                </div>
-              )}
-
-              {/* Water Intake Log */}
-              {waterIntake.length > 0 && (
-                <div className="mt-6">
-                  <h3 className="text-white font-medium mb-2 flex items-center">
-                    <Droplet className="h-4 w-4 mr-1 text-blue-500" />
-                    Water Intake
-                  </h3>
-                  <div className="space-y-2">
-                    {waterIntake.map((entry) => (
-                      <div
-                        key={entry.timestamp}
-                        className="bg-gray-800 p-2 rounded-md flex justify-between items-center border-l-4 border-blue-500"
-                      >
-                        <div>
-                          <div className="text-white">{entry.amount}ml</div>
-                          <div className="text-xs text-gray-400">{format(new Date(entry.timestamp), "h:mm a")}</div>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeWaterEntry(entry.timestamp)}
-                          className="h-8 w-8 p-0 text-gray-400 hover:text-red-500 hover:bg-gray-700"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Summary Tab */}
-        <TabsContent value="summary" className="space-y-6">
-          {/* Macronutrient Distribution */}
-          <Card className="bg-gradient-to-br from-gray-900 to-gray-800 border-gray-700">
-            <CardHeader>
-              <CardTitle className="text-white">Macronutrient Distribution</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex justify-center mb-4">
-                <div className="w-48 h-48 rounded-full border-8 border-gray-700 flex items-center justify-center relative">
-                  <div
-                    className="absolute inset-0 rounded-full"
-                    style={{
-                      background: `conic-gradient(
-                        rgb(59, 130, 246) 0% ${macroDistribution.protein}%, 
-                        rgb(34, 197, 94) ${macroDistribution.protein}% ${macroDistribution.protein + macroDistribution.carbs}%, 
-                        rgb(234, 179, 8) ${macroDistribution.protein + macroDistribution.carbs}% 100%
-                      )`,
-                    }}
-                  ></div>
-                  <div className="w-32 h-32 bg-gray-800 rounded-full flex items-center justify-center z-10">
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-white">{Math.round(dailyTotals.calories)}</div>
-                      <div className="text-sm text-gray-400">calories</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-4 text-center">
-                <div>
-                  <div className="flex items-center justify-center gap-1">
-                    <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                    <span className="text-white font-medium">Protein</span>
-                  </div>
-                  <div className="text-lg font-bold text-white">{Math.round(dailyTotals.protein)}g</div>
-                  <div className="text-sm text-gray-400">{macroDistribution.protein}%</div>
-                </div>
-                <div>
-                  <div className="flex items-center justify-center gap-1">
-                    <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                    <span className="text-white font-medium">Carbs</span>
-                  </div>
-                  <div className="text-lg font-bold text-white">{Math.round(dailyTotals.carbs)}g</div>
-                  <div className="text-sm text-gray-400">{macroDistribution.carbs}%</div>
-                </div>
-                <div>
-                  <div className="flex items-center justify-center gap-1">
-                    <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-                    <span className="text-white font-medium">Fat</span>
-                  </div>
-                  <div className="text-lg font-bold text-white">{Math.round(dailyTotals.fat)}g</div>
-                  <div className="text-sm text-gray-400">{macroDistribution.fat}%</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Meal Summary */}
-          <Card className="bg-gradient-to-br from-gray-900 to-gray-800 border-gray-700">
-            <CardHeader>
-              <CardTitle className="text-white">Meal Summary</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-6">
-                {Object.entries(entriesByCategory).map(([category, foods]) => (
-                  <div key={category}>
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-white font-medium capitalize">{category}</h3>
-                      <div className="text-white font-medium">
-                        {Math.round(totalsByCategory[category as keyof typeof totalsByCategory].calories)} kcal
-                      </div>
-                    </div>
-
-                    {foods.length === 0 ? (
-                      <div className="text-gray-400 text-sm italic">No foods logged</div>
-                    ) : (
-                      <div className="space-y-2">
-                        {foods.map((food) => (
-                          <div key={food.id} className="bg-gray-800 p-2 rounded-md flex justify-between">
-                            <div className="text-white">
-                              {food.name}
-                              <span className="text-gray-400 text-sm ml-2">
-                                {food.quantity} × {food.servingSize.amount}
-                                {food.servingSize.unit}
-                              </span>
-                            </div>
-                            <div className="text-white">{Math.round(food.nutrition.calories * food.quantity)} kcal</div>
-                          </div>
-                        ))}
-
-                        <div className="flex justify-between text-sm pt-1">
-                          <div className="text-gray-400">
-                            P: {Math.round(totalsByCategory[category as keyof typeof totalsByCategory].protein)}g | C:{" "}
-                            {Math.round(totalsByCategory[category as keyof typeof totalsByCategory].carbs)}g | F:{" "}
-                            {Math.round(totalsByCategory[category as keyof typeof totalsByCategory].fat)}g
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    <Separator className="my-4 bg-gray-700" />
-                  </div>
                 ))}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
-                {/* Water Summary */}
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-white font-medium flex items-center">
-                      <Droplet className="h-4 w-4 mr-1 text-blue-500" />
-                      Water
-                    </h3>
-                    <div className="text-white font-medium">
-                      {totalWaterIntake} / {dailyGoals.water || 2000}ml
-                    </div>
-                  </div>
-
-                  <Progress value={percentages.water} className="h-2" indicatorClassName="bg-blue-500" />
+      {/* Nutrition Summary */}
+      <Card className="bg-gradient-to-br from-gray-900 to-gray-800 border-gray-700">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-white">Nutrition Summary</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {/* Macronutrient Distribution */}
+          <div className="flex flex-col md:flex-row gap-6 items-center mb-6">
+            <div className="w-40 h-40 rounded-full border-8 border-gray-700 flex items-center justify-center relative">
+              <div
+                className="absolute inset-0 rounded-full"
+                style={{
+                  background: `conic-gradient(
+                    rgb(59, 130, 246) 0% ${macroDistribution.protein}%, 
+                    rgb(34, 197, 94) ${macroDistribution.protein}% ${macroDistribution.protein + macroDistribution.carbs}%, 
+                    rgb(234, 179, 8) ${macroDistribution.protein + macroDistribution.carbs}% 100%
+                  )`,
+                }}
+              ></div>
+              <div className="w-28 h-28 bg-gray-800 rounded-full flex items-center justify-center z-10">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-white">{Math.round(dailyTotals.calories)}</div>
+                  <div className="text-sm text-gray-400">calories</div>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+            </div>
 
-        {/* Goals Tab */}
-        <TabsContent value="goals" className="space-y-6">
-          <Card className="bg-gradient-to-br from-gray-900 to-gray-800 border-gray-700">
-            <CardHeader>
-              <CardTitle className="text-white">Nutrition Goals</CardTitle>
-              <CardDescription className="text-gray-400">Set your daily nutrition targets</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-6">
-                <div>
-                  <label className="block text-sm mb-1 text-white">Daily Calories</label>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      type="number"
-                      value={dailyGoals.calories}
-                      onChange={(e) => updateDailyGoals({ calories: Number.parseInt(e.target.value) || 0 })}
-                      className="bg-gray-800 border-gray-700 text-white"
-                    />
-                    <span className="text-white">kcal</span>
-                  </div>
+            <div className="grid grid-cols-3 gap-4 text-center flex-1">
+              <div>
+                <div className="flex items-center justify-center gap-1">
+                  <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                  <span className="text-white font-medium">Protein</span>
                 </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm mb-1 text-white">Protein</label>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="number"
-                        value={dailyGoals.protein}
-                        onChange={(e) => updateDailyGoals({ protein: Number.parseInt(e.target.value) || 0 })}
-                        className="bg-gray-800 border-gray-700 text-white"
-                      />
-                      <span className="text-white">g</span>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-sm mb-1 text-white">Carbs</label>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="number"
-                        value={dailyGoals.carbs}
-                        onChange={(e) => updateDailyGoals({ carbs: Number.parseInt(e.target.value) || 0 })}
-                        className="bg-gray-800 border-gray-700 text-white"
-                      />
-                      <span className="text-white">g</span>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-sm mb-1 text-white">Fat</label>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="number"
-                        value={dailyGoals.fat}
-                        onChange={(e) => updateDailyGoals({ fat: Number.parseInt(e.target.value) || 0 })}
-                        className="bg-gray-800 border-gray-700 text-white"
-                      />
-                      <span className="text-white">g</span>
-                    </div>
-                  </div>
-                </div>
-
-                <Separator className="bg-gray-700" />
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm mb-1 text-white">Fiber</label>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="number"
-                        value={dailyGoals.fiber || 30}
-                        onChange={(e) => updateDailyGoals({ fiber: Number.parseInt(e.target.value) || 0 })}
-                        className="bg-gray-800 border-gray-700 text-white"
-                      />
-                      <span className="text-white">g</span>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-sm mb-1 text-white">Sugar</label>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="number"
-                        value={dailyGoals.sugar || 50}
-                        onChange={(e) => updateDailyGoals({ sugar: Number.parseInt(e.target.value) || 0 })}
-                        className="bg-gray-800 border-gray-700 text-white"
-                      />
-                      <span className="text-white">g</span>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-sm mb-1 text-white">Sodium</label>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="number"
-                        value={dailyGoals.sodium || 2300}
-                        onChange={(e) => updateDailyGoals({ sodium: Number.parseInt(e.target.value) || 0 })}
-                        className="bg-gray-800 border-gray-700 text-white"
-                      />
-                      <span className="text-white">mg</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm mb-1 text-white">Water</label>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      type="number"
-                      value={dailyGoals.water || 2000}
-                      onChange={(e) => updateDailyGoals({ water: Number.parseInt(e.target.value) || 0 })}
-                      className="bg-gray-800 border-gray-700 text-white"
-                    />
-                    <span className="text-white">ml</span>
-                  </div>
-                </div>
+                <div className="text-lg font-bold text-white">{Math.round(dailyTotals.protein)}g</div>
+                <div className="text-sm text-gray-400">{macroDistribution.protein}%</div>
               </div>
-            </CardContent>
-            <CardFooter>
-              <Button className="w-full bg-orange-600 hover:bg-orange-700" onClick={() => setActiveTab("diary")}>
-                Save & Return to Diary
-              </Button>
-            </CardFooter>
-          </Card>
-        </TabsContent>
-      </Tabs>
+              <div>
+                <div className="flex items-center justify-center gap-1">
+                  <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                  <span className="text-white font-medium">Carbs</span>
+                </div>
+                <div className="text-lg font-bold text-white">{Math.round(dailyTotals.carbs)}g</div>
+                <div className="text-sm text-gray-400">{macroDistribution.carbs}%</div>
+              </div>
+              <div>
+                <div className="flex items-center justify-center gap-1">
+                  <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+                  <span className="text-white font-medium">Fat</span>
+                </div>
+                <div className="text-lg font-bold text-white">{Math.round(dailyTotals.fat)}g</div>
+                <div className="text-sm text-gray-400">{macroDistribution.fat}%</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Detailed Nutrition */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-3">
+              <h3 className="text-white font-medium">Macronutrients</h3>
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-400">Calories</span>
+                  <span className="text-white">
+                    {Math.round(dailyTotals.calories)} / {dailyGoals.calories} kcal
+                  </span>
+                </div>
+                <Progress
+                  value={percentages.calories}
+                  className="h-2"
+                  indicatorClassName={remaining.calories < 0 ? "bg-red-500" : "bg-orange-500"}
+                />
+
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-400">Protein</span>
+                  <span className="text-white">
+                    {Math.round(dailyTotals.protein)} / {dailyGoals.protein} g
+                  </span>
+                </div>
+                <Progress value={percentages.protein} className="h-2" indicatorClassName="bg-blue-500" />
+
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-400">Carbs</span>
+                  <span className="text-white">
+                    {Math.round(dailyTotals.carbs)} / {dailyGoals.carbs} g
+                  </span>
+                </div>
+                <Progress value={percentages.carbs} className="h-2" indicatorClassName="bg-green-500" />
+
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-400">Fat</span>
+                  <span className="text-white">
+                    {Math.round(dailyTotals.fat)} / {dailyGoals.fat} g
+                  </span>
+                </div>
+                <Progress value={percentages.fat} className="h-2" indicatorClassName="bg-yellow-500" />
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <h3 className="text-white font-medium">Additional Nutrients</h3>
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-400">Fiber</span>
+                  <span className="text-white">
+                    {Math.round(dailyTotals.fiber)} / {dailyGoals.fiber || 30} g
+                  </span>
+                </div>
+                <Progress value={percentages.fiber} className="h-2" indicatorClassName="bg-purple-500" />
+
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-400">Sugar</span>
+                  <span className="text-white">
+                    {Math.round(dailyTotals.sugar)} / {dailyGoals.sugar || 50} g
+                  </span>
+                </div>
+                <Progress value={percentages.sugar} className="h-2" indicatorClassName="bg-pink-500" />
+
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-400">Sodium</span>
+                  <span className="text-white">
+                    {Math.round(dailyTotals.sodium)} / {dailyGoals.sodium || 2300} mg
+                  </span>
+                </div>
+                <Progress value={percentages.sodium} className="h-2" indicatorClassName="bg-red-500" />
+
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-400">Water</span>
+                  <span className="text-white">
+                    {totalWaterIntake} / {dailyGoals.water || 2000} ml
+                  </span>
+                </div>
+                <Progress value={percentages.water} className="h-2" indicatorClassName="bg-blue-500" />
+              </div>
+            </div>
+          </div>
+
+          {/* Daily Goals Button */}
+          <div className="mt-6">
+            <Button onClick={() => setActiveTab("goals")} className="w-full bg-gray-700 hover:bg-gray-600 text-white">
+              Adjust Daily Goals
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Food Dialog */}
       <Dialog open={showFoodDialog} onOpenChange={setShowFoodDialog}>
@@ -2308,28 +1893,6 @@ export function CalorieTracker() {
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm mb-1 text-white">Meal Category</label>
-              <Select
-                value={
-                  selectedCategory !== "all"
-                    ? selectedCategory
-                    : determineFoodCategory(selectedFood?.name || "", new Date().getHours())
-                }
-                onValueChange={setSelectedCategory}
-              >
-                <SelectTrigger className="bg-gray-800 border-gray-700 text-white">
-                  <SelectValue placeholder="Select meal category" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="breakfast">Breakfast</SelectItem>
-                  <SelectItem value="lunch">Lunch</SelectItem>
-                  <SelectItem value="dinner">Dinner</SelectItem>
-                  <SelectItem value="snack">Snack</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
             {selectedFood && (
               <div className="bg-gray-800 p-3 rounded-md">
                 <h4 className="font-medium text-white mb-2">
@@ -2373,6 +1936,38 @@ export function CalorieTracker() {
             <Button onClick={addFoodToDiary} className="bg-orange-600 hover:bg-orange-700">
               <PlusCircle className="h-4 w-4 mr-1" />
               Add Food
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Note Dialog */}
+      <Dialog open={showNoteDialog} onOpenChange={setShowNoteDialog}>
+        <DialogContent className="bg-gray-900 text-white border-gray-700">
+          <DialogHeader>
+            <DialogTitle>Add Note</DialogTitle>
+            <DialogDescription className="text-gray-400">
+              Add a note about your meals, feelings, or anything else
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <Textarea
+              placeholder="E.g., 'Breakfast: 2 eggs and toast', 'Feeling hungry today', 'Skipped lunch'"
+              value={newNote}
+              onChange={(e) => setNewNote(e.target.value)}
+              className="bg-gray-800 border-gray-700 text-white"
+              rows={4}
+            />
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowNoteDialog(false)} className="border-gray-700 text-white">
+              Cancel
+            </Button>
+            <Button onClick={addNoteToDiary} className="bg-orange-600 hover:bg-orange-700" disabled={!newNote.trim()}>
+              <FileText className="h-4 w-4 mr-1" />
+              Add Note
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -2460,6 +2055,130 @@ export function CalorieTracker() {
             <Button onClick={addWaterIntake} className="bg-blue-600 hover:bg-blue-700">
               <Droplet className="h-4 w-4 mr-1" />
               Add Water
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Goals Dialog */}
+      <Dialog open={activeTab === "goals"} onOpenChange={(open) => !open && setActiveTab("diary")}>
+        <DialogContent className="bg-gray-900 text-white border-gray-700">
+          <DialogHeader>
+            <DialogTitle>Nutrition Goals</DialogTitle>
+            <DialogDescription className="text-gray-400">Set your daily nutrition targets</DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6 py-2">
+            <div>
+              <label className="block text-sm mb-1 text-white">Daily Calories</label>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  value={dailyGoals.calories}
+                  onChange={(e) => updateDailyGoals({ calories: Number.parseInt(e.target.value) || 0 })}
+                  className="bg-gray-800 border-gray-700 text-white"
+                />
+                <span className="text-white">kcal</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm mb-1 text-white">Protein</label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    value={dailyGoals.protein}
+                    onChange={(e) => updateDailyGoals({ protein: Number.parseInt(e.target.value) || 0 })}
+                    className="bg-gray-800 border-gray-700 text-white"
+                  />
+                  <span className="text-white">g</span>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm mb-1 text-white">Carbs</label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    value={dailyGoals.carbs}
+                    onChange={(e) => updateDailyGoals({ carbs: Number.parseInt(e.target.value) || 0 })}
+                    className="bg-gray-800 border-gray-700 text-white"
+                  />
+                  <span className="text-white">g</span>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm mb-1 text-white">Fat</label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    value={dailyGoals.fat}
+                    onChange={(e) => updateDailyGoals({ fat: Number.parseInt(e.target.value) || 0 })}
+                    className="bg-gray-800 border-gray-700 text-white"
+                  />
+                  <span className="text-white">g</span>
+                </div>
+              </div>
+            </div>
+
+            <Separator className="bg-gray-700" />
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm mb-1 text-white">Fiber</label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    value={dailyGoals.fiber || 30}
+                    onChange={(e) => updateDailyGoals({ fiber: Number.parseInt(e.target.value) || 0 })}
+                    className="bg-gray-800 border-gray-700 text-white"
+                  />
+                  <span className="text-white">g</span>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm mb-1 text-white">Sugar</label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    value={dailyGoals.sugar || 50}
+                    onChange={(e) => updateDailyGoals({ sugar: Number.parseInt(e.target.value) || 0 })}
+                    className="bg-gray-800 border-gray-700 text-white"
+                  />
+                  <span className="text-white">g</span>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm mb-1 text-white">Sodium</label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    value={dailyGoals.sodium || 2300}
+                    onChange={(e) => updateDailyGoals({ sodium: Number.parseInt(e.target.value) || 0 })}
+                    className="bg-gray-800 border-gray-700 text-white"
+                  />
+                  <span className="text-white">mg</span>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm mb-1 text-white">Water</label>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  value={dailyGoals.water || 2000}
+                  onChange={(e) => updateDailyGoals({ water: Number.parseInt(e.target.value) || 0 })}
+                  className="bg-gray-800 border-gray-700 text-white"
+                />
+                <span className="text-white">ml</span>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button onClick={() => setActiveTab("diary")} className="w-full bg-orange-600 hover:bg-orange-700">
+              Save & Return to Diary
             </Button>
           </DialogFooter>
         </DialogContent>
