@@ -402,15 +402,110 @@ export function EnhancedMealPlanGenerator({ userData }) {
     return Math.round((Math.abs(weightDiff) * 7700) / calorieDeficitOrSurplus)
   }
 
-  // Handle goal weight change
+  // Handle goal weight change - simplified and direct
   const handleGoalWeightChange = (newGoalWeight: number) => {
+    console.log("Goal weight changed to:", newGoalWeight)
     setGoalWeight(newGoalWeight)
-    setUserManuallySetGoalWeight(true)
 
     if (userData?.weight) {
-      calculateWeightDifference(userData.weight, newGoalWeight)
-      // Directly call the calculation function with the new goal weight
-      calculateCalorieGoal(userData.weight, newGoalWeight, dietPeriod)
+      // Calculate weight difference
+      const weightDiff = userData.weight - newGoalWeight
+      setWeightDifference(weightDiff)
+
+      // Calculate progress
+      if (dietGoal === "weight-loss") {
+        const startingGap = userData.weight - newGoalWeight
+        const currentGap = userData.weight - newGoalWeight
+        const progress = startingGap > 0 ? ((startingGap - currentGap) / startingGap) * 100 : 0
+        setWeightProgress(Math.max(0, Math.min(100, progress)))
+      } else if (dietGoal === "weight-gain") {
+        const startingGap = newGoalWeight - userData.weight
+        const currentGap = newGoalWeight - userData.weight
+        const progress = startingGap > 0 ? ((startingGap - currentGap) / startingGap) * 100 : 0
+        setWeightProgress(Math.max(0, Math.min(100, progress)))
+      } else {
+        const progress = Math.abs(weightDiff) <= 1 ? 100 : 0
+        setWeightProgress(progress)
+      }
+
+      // Calculate BMR using Mifflin-St Jeor Equation
+      let bmr
+      if (userData.gender === "male") {
+        bmr = 10 * userData.weight + 6.25 * userData.height - 5 * userData.age + 5
+      } else {
+        bmr = 10 * userData.weight + 6.25 * userData.height - 5 * userData.age - 161
+      }
+
+      // Calculate TDEE (Total Daily Energy Expenditure)
+      const activityLevel = userData.activityLevel || "moderate"
+      const tdee = Math.round(bmr * activityMultipliers[activityLevel])
+
+      // Store the maintenance calories for reference
+      const maintenanceCalories = tdee
+
+      // Calculate calorie adjustment based on weight difference
+      // Each kg of body fat = approximately 7700 calories
+      let calculatedCalorieGoal
+      let dailyDeficitOrSurplus = 0
+
+      // Convert diet period to days
+      const periodInDays = getPeriodInDays(dietPeriod)
+
+      if (Math.abs(weightDiff) < 0.1) {
+        // If the difference is negligible, maintain current weight
+        calculatedCalorieGoal = maintenanceCalories
+      } else if (weightDiff > 0) {
+        // Need to lose weight - create a deficit
+        // Calculate total calorie deficit needed
+        const totalDeficitNeeded = weightDiff * 7700
+
+        // Calculate daily deficit
+        dailyDeficitOrSurplus = Math.round(totalDeficitNeeded / periodInDays)
+
+        // Cap the daily deficit to ensure healthy weight loss (max 1000 calories/day deficit)
+        dailyDeficitOrSurplus = Math.min(dailyDeficitOrSurplus, 1000)
+
+        // Calculate goal calories
+        calculatedCalorieGoal = maintenanceCalories - dailyDeficitOrSurplus
+
+        // Ensure minimum healthy calorie intake
+        const minCalories = userData.gender === "male" ? 1500 : 1200
+        calculatedCalorieGoal = Math.max(calculatedCalorieGoal, minCalories)
+      } else {
+        // Need to gain weight - create a surplus
+        // Calculate total calorie surplus needed
+        const totalSurplusNeeded = Math.abs(weightDiff) * 7700
+
+        // Calculate daily surplus
+        dailyDeficitOrSurplus = Math.round(totalSurplusNeeded / periodInDays)
+
+        // Cap the daily surplus to ensure healthy weight gain (max 500 calories/day surplus)
+        dailyDeficitOrSurplus = Math.min(dailyDeficitOrSurplus, 500)
+
+        // Calculate goal calories
+        calculatedCalorieGoal = maintenanceCalories + dailyDeficitOrSurplus
+      }
+
+      // Round to nearest 50 calories for simplicity
+      calculatedCalorieGoal = Math.round(calculatedCalorieGoal / 50) * 50
+
+      // Update calorie goal immediately
+      setCalorieGoal(calculatedCalorieGoal)
+      console.log("Updated calorie goal to:", calculatedCalorieGoal)
+
+      // Calculate estimated time to reach goal
+      const estimatedDays = calculateEstimatedDaysToGoal(weightDiff, calculatedCalorieGoal, maintenanceCalories)
+
+      // Update calculation details for display
+      setCalorieCalculationDetails({
+        maintenanceCalories,
+        goalCalories: calculatedCalorieGoal,
+        weightDifference: weightDiff,
+        estimatedDays,
+        bmr: Math.round(bmr),
+        tdee: maintenanceCalories,
+        dailyDeficitOrSurplus,
+      })
     }
   }
 
@@ -1492,6 +1587,10 @@ export function EnhancedMealPlanGenerator({ userData }) {
                               Based on the 7700 calories per kg rule, your daily calorie{" "}
                               {weightDifference > 0 ? "deficit" : "surplus"} is calculated to achieve your goal weight
                               in the selected time period.
+                            </p>
+                            <p className="mt-1 text-green-500">
+                              Last updated: {new Date().toLocaleTimeString()} - Goal weight: {goalWeight}kg - Calories:{" "}
+                              {calorieGoal}
                             </p>
                           </div>
                         </div>
