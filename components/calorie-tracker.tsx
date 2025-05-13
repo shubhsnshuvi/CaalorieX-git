@@ -5,39 +5,30 @@ import type React from "react"
 import { useState, useEffect, useRef, useMemo } from "react"
 import { useAuth } from "@/lib/use-auth"
 import {
-  PlusCircle,
   Trash2,
   X,
   RefreshCw,
   Edit,
   Save,
-  FileText,
   Calendar,
   ChevronLeft,
   ChevronRight,
   Heart,
-  Droplet,
-  SortDesc,
-  History,
   Search,
+  GripVertical,
+  Check,
+  FileText,
+  Droplet,
+  History,
+  SortDesc,
+  PlusCircle,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { Separator } from "@/components/ui/separator"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   doc,
   getDoc,
@@ -55,6 +46,22 @@ import {
 } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { format, addDays, subDays, parseISO, isToday, isYesterday, isTomorrow } from "date-fns"
+import { KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core"
+import { arrayMove, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Separator } from "@/components/ui/separator"
+import { DndContext } from "@dnd-kit/core"
+import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 
 // Types
 interface FoodItem {
@@ -137,6 +144,281 @@ const formatDateForDisplay = (dateString: string): string => {
   }
 }
 
+// Sortable Food Item Component
+function SortableFoodItem({
+  entry,
+  toggleFavorite,
+  removeEntryFromDiary,
+  editFoodQuantity,
+}: {
+  entry: FoodItem
+  toggleFavorite: (food: FoodItem) => void
+  removeEntryFromDiary: (id: string) => void
+  editFoodQuantity: (id: string, quantity: number) => void
+}) {
+  const [isEditing, setIsEditing] = useState(false)
+  const [editedQuantity, setEditedQuantity] = useState(entry.quantity)
+
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: entry.id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 10 : 1,
+  }
+
+  const handleSaveQuantity = () => {
+    editFoodQuantity(entry.id, editedQuantity)
+    setIsEditing(false)
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`bg-gray-800 p-3 rounded-md flex justify-between items-center ${isDragging ? "border border-orange-500" : ""}`}
+    >
+      <div className="flex items-center gap-2">
+        <div
+          {...attributes}
+          {...listeners}
+          className="cursor-grab active:cursor-grabbing p-1 hover:bg-gray-700 rounded"
+        >
+          <GripVertical className="h-4 w-4 text-gray-500" />
+        </div>
+        <div>
+          <div className="font-medium text-white flex items-center">
+            {entry.name}
+            {entry.isFavorite && <Heart className="h-3 w-3 ml-1 text-red-500 fill-red-500" />}
+          </div>
+          <div className="text-sm text-gray-400">
+            {isEditing ? (
+              <div className="flex items-center gap-2 mt-1">
+                <Input
+                  type="number"
+                  min="0.25"
+                  step="0.25"
+                  value={editedQuantity}
+                  onChange={(e) => setEditedQuantity(Number(e.target.value) || 0)}
+                  className="bg-gray-700 border-gray-600 text-white h-7 w-16 px-2 py-1"
+                />
+                <span className="text-xs">
+                  × {entry.servingSize.amount}
+                  {entry.servingSize.unit}
+                </span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleSaveQuantity}
+                  className="h-6 w-6 p-0 text-green-500 hover:text-green-400 hover:bg-gray-700"
+                >
+                  <Check className="h-3 w-3" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setIsEditing(false)}
+                  className="h-6 w-6 p-0 text-gray-400 hover:text-gray-300 hover:bg-gray-700"
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            ) : (
+              <>
+                {entry.quantity} × {entry.servingSize.amount}
+                {entry.servingSize.unit}
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <div className="text-right">
+          <div className="text-white">{Math.round(entry.nutrition.calories * entry.quantity)} kcal</div>
+          <div className="text-xs text-gray-400">
+            P: {Math.round(entry.nutrition.protein * entry.quantity)}g | C:{" "}
+            {Math.round(entry.nutrition.carbs * entry.quantity)}g | F:{" "}
+            {Math.round(entry.nutrition.fat * entry.quantity)}g
+          </div>
+        </div>
+        <div className="flex">
+          {!isEditing && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsEditing(true)}
+                    className="h-8 w-8 p-0 text-gray-400 hover:text-white hover:bg-gray-700"
+                  >
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Edit quantity</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => toggleFavorite(entry)}
+                  className="h-8 w-8 p-0 text-gray-400 hover:text-red-500 hover:bg-gray-700"
+                >
+                  <Heart className={`h-4 w-4 ${entry.isFavorite ? "text-red-500 fill-red-500" : ""}`} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{entry.isFavorite ? "Remove from favorites" : "Add to favorites"}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => removeEntryFromDiary(entry.id)}
+                  className="h-8 w-8 p-0 text-gray-400 hover:text-red-500 hover:bg-gray-700"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Remove food</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Sortable Note Item Component
+function SortableNoteItem({
+  entry,
+  startEditingNote,
+  removeEntryFromDiary,
+  saveEditedNote,
+  editingNoteId,
+}: {
+  entry: NoteItem
+  startEditingNote: (id: string) => void
+  removeEntryFromDiary: (id: string) => void
+  saveEditedNote: (id: string, content: string) => void
+  editingNoteId: string | null
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: entry.id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 10 : 1,
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`bg-gray-700 p-3 rounded-md border-l-4 border-orange-500 ${isDragging ? "border border-orange-500" : ""}`}
+    >
+      {editingNoteId === entry.id ? (
+        <div className="flex flex-col gap-2">
+          <Textarea
+            defaultValue={entry.content}
+            className="bg-gray-800 border-gray-700 text-white"
+            rows={2}
+            id={`note-edit-${entry.id}`}
+          />
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => startEditingNote(null)}
+              className="border-gray-600 text-white"
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                const textarea = document.getElementById(`note-edit-${entry.id}`) as HTMLTextAreaElement
+                if (textarea) {
+                  saveEditedNote(entry.id, textarea.value)
+                }
+              }}
+              className="bg-orange-600 hover:bg-orange-700"
+            >
+              <Save className="h-4 w-4 mr-1" />
+              Save
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex justify-between items-start">
+          <div className="flex items-start gap-2">
+            <div
+              {...attributes}
+              {...listeners}
+              className="cursor-grab active:cursor-grabbing p-1 hover:bg-gray-600 rounded mt-1"
+            >
+              <GripVertical className="h-4 w-4 text-gray-500" />
+            </div>
+            <div className="whitespace-pre-wrap text-white">{entry.content}</div>
+          </div>
+          <div className="flex gap-1">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => startEditingNote(entry.id)}
+                    className="h-8 w-8 p-0 text-gray-300 hover:text-white hover:bg-gray-600"
+                  >
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Edit note</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => removeEntryFromDiary(entry.id)}
+                    className="h-8 w-8 p-0 text-gray-300 hover:text-red-500 hover:bg-gray-700"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Remove note</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function CalorieTracker() {
   // Auth and user data
   const { user, userData, loading: authLoading, error: authError, refreshUserData } = useAuth()
@@ -174,9 +456,22 @@ export function CalorieTracker() {
   const [showFoodDialog, setShowFoodDialog] = useState(false)
   const [showWaterDialog, setShowWaterDialog] = useState(false)
   const [waterAmount, setWaterAmount] = useState(250)
-  const [sortOrder, setSortOrder] = useState<"time" | "category">("time")
+  const [sortOrder, setSortOrder] = useState<"time" | "category" | "custom">("time")
   const [showRecentFoods, setShowRecentFoods] = useState(false)
   const [showFavoriteFoods, setShowFavoriteFoods] = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
+
+  // DnD sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // 8px movement required before drag starts
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  )
 
   // Refs
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -259,6 +554,11 @@ export function CalorieTracker() {
 
   // Sort diary entries
   const sortedDiaryEntries = useMemo(() => {
+    if (sortOrder === "custom") {
+      // When in custom order (after drag and drop), return entries as is
+      return diaryEntries
+    }
+
     const entries = [...diaryEntries]
 
     // Apply sorting
@@ -984,7 +1284,7 @@ export function CalorieTracker() {
 
     // Add the new food item to the diary entries
     setDiaryEntries((prev) => {
-      const newEntries = [...prev, newFood].sort((a, b) => a.timestamp - b.timestamp)
+      const newEntries = [...prev, newFood]
       console.log("Updated diary entries:", newEntries)
       return newEntries
     })
@@ -997,6 +1297,9 @@ export function CalorieTracker() {
     setQuantity(1)
     setSearchTerm("")
     setShowFoodDialog(false)
+
+    // Set sort order to custom after adding a new item
+    setSortOrder("custom")
   }
 
   // Add to recent foods
@@ -1111,13 +1414,16 @@ export function CalorieTracker() {
 
     // Add the new note to the diary entries
     setDiaryEntries((prev) => {
-      const newEntries = [...prev, note].sort((a, b) => a.timestamp - b.timestamp)
+      const newEntries = [...prev, note]
       console.log("Updated diary entries:", newEntries)
       return newEntries
     })
 
     setNewNote("")
     setShowNoteDialog(false)
+
+    // Set sort order to custom after adding a new item
+    setSortOrder("custom")
   }
 
   // Add water intake
@@ -1134,7 +1440,7 @@ export function CalorieTracker() {
   }
 
   // Start editing a note
-  const startEditingNote = (id: string) => {
+  const startEditingNote = (id: string | null) => {
     setEditingNoteId(id)
   }
 
@@ -1149,6 +1455,20 @@ export function CalorieTracker() {
       }),
     )
     setEditingNoteId(null)
+  }
+
+  // Edit food quantity
+  const editFoodQuantity = (id: string, newQuantity: number) => {
+    if (newQuantity <= 0) return
+
+    setDiaryEntries((prev) =>
+      prev.map((entry) => {
+        if (isFoodItem(entry) && entry.id === id) {
+          return { ...entry, quantity: newQuantity }
+        }
+        return entry
+      }),
+    )
   }
 
   // Remove entry from diary
@@ -1202,6 +1522,25 @@ export function CalorieTracker() {
   // Go to today
   const goToToday = () => {
     handleDateChange(new Date().toISOString().split("T")[0])
+  }
+
+  // Handle drag end event
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+
+    if (over && active.id !== over.id) {
+      setDiaryEntries((items) => {
+        const oldIndex = items.findIndex((item) => item.id === active.id)
+        const newIndex = items.findIndex((item) => item.id === over.id)
+
+        // Set sort order to custom after manual reordering
+        setSortOrder("custom")
+
+        return arrayMove(items, oldIndex, newIndex)
+      })
+    }
+
+    setIsDragging(false)
   }
 
   // If there's an error loading user data, show an error message with a retry button
@@ -1419,7 +1758,7 @@ export function CalorieTracker() {
               className="text-white border-gray-700"
             >
               <SortDesc className="h-4 w-4 mr-1" />
-              {sortOrder === "time" ? "By Time" : "By Type"}
+              {sortOrder === "time" ? "By Time" : sortOrder === "category" ? "By Type" : "Custom Order"}
             </Button>
           </div>
 
@@ -1511,154 +1850,44 @@ export function CalorieTracker() {
           {sortedDiaryEntries.length === 0 ? (
             <div className="text-center py-6 text-gray-400">No entries yet. Add foods or notes to get started.</div>
           ) : (
-            <div className="space-y-3">
-              {sortedDiaryEntries.map((entry) => {
-                if (isFoodItem(entry)) {
-                  // Render food item
-                  return (
-                    <div key={entry.id} className="bg-gray-800 p-3 rounded-md flex justify-between items-center">
-                      <div>
-                        <div className="font-medium text-white flex items-center">
-                          {entry.name}
-                          {entry.isFavorite && <Heart className="h-3 w-3 ml-1 text-red-500 fill-red-500" />}
-                        </div>
-                        <div className="text-sm text-gray-400">
-                          {entry.quantity} × {entry.servingSize.amount}
-                          {entry.servingSize.unit}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="text-right">
-                          <div className="text-white">{Math.round(entry.nutrition.calories * entry.quantity)} kcal</div>
-                          <div className="text-xs text-gray-400">
-                            P: {Math.round(entry.nutrition.protein * entry.quantity)}g | C:{" "}
-                            {Math.round(entry.nutrition.carbs * entry.quantity)}g | F:{" "}
-                            {Math.round(entry.nutrition.fat * entry.quantity)}g
-                          </div>
-                        </div>
-                        <div className="flex">
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => toggleFavorite(entry)}
-                                  className="h-8 w-8 p-0 text-gray-400 hover:text-red-500 hover:bg-gray-700"
-                                >
-                                  <Heart className={`h-4 w-4 ${entry.isFavorite ? "text-red-500 fill-red-500" : ""}`} />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>{entry.isFavorite ? "Remove from favorites" : "Add to favorites"}</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => removeEntryFromDiary(entry.id)}
-                                  className="h-8 w-8 p-0 text-gray-400 hover:text-red-500 hover:bg-gray-700"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Remove food</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                } else if (isNoteItem(entry)) {
-                  // Render note item
-                  return (
-                    <div key={entry.id} className="bg-gray-700 p-3 rounded-md border-l-4 border-orange-500">
-                      {editingNoteId === entry.id ? (
-                        <div className="flex flex-col gap-2">
-                          <Textarea
-                            defaultValue={entry.content}
-                            className="bg-gray-800 border-gray-700 text-white"
-                            rows={2}
-                            id={`note-edit-${entry.id}`}
-                          />
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setEditingNoteId(null)}
-                              className="border-gray-600 text-white"
-                            >
-                              Cancel
-                            </Button>
-                            <Button
-                              size="sm"
-                              onClick={() => {
-                                const textarea = document.getElementById(`note-edit-${entry.id}`) as HTMLTextAreaElement
-                                if (textarea) {
-                                  saveEditedNote(entry.id, textarea.value)
-                                }
-                              }}
-                              className="bg-orange-600 hover:bg-orange-700"
-                            >
-                              <Save className="h-4 w-4 mr-1" />
-                              Save
-                            </Button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex justify-between items-start">
-                          <div className="whitespace-pre-wrap text-white">{entry.content}</div>
-                          <div className="flex gap-1">
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => startEditingNote(entry.id)}
-                                    className="h-8 w-8 p-0 text-gray-300 hover:text-white hover:bg-gray-600"
-                                  >
-                                    <Edit className="h-4 w-4" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>Edit note</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => removeEntryFromDiary(entry.id)}
-                                    className="h-8 w-8 p-0 text-gray-300 hover:text-red-500 hover:bg-gray-700"
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>Remove note</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )
-                }
-                return null
-              })}
-            </div>
+            <DndContext
+              sensors={sensors}
+              onDragStart={() => setIsDragging(true)}
+              onDragEnd={handleDragEnd}
+              onDragCancel={() => setIsDragging(false)}
+            >
+              <SortableContext items={sortedDiaryEntries.map((item) => item.id)} strategy={verticalListSortingStrategy}>
+                <div className="space-y-3">
+                  {sortedDiaryEntries.map((entry) => {
+                    if (isFoodItem(entry)) {
+                      // Render food item
+                      return (
+                        <SortableFoodItem
+                          key={entry.id}
+                          entry={entry}
+                          toggleFavorite={toggleFavorite}
+                          removeEntryFromDiary={removeEntryFromDiary}
+                          editFoodQuantity={editFoodQuantity}
+                        />
+                      )
+                    } else if (isNoteItem(entry)) {
+                      // Render note item
+                      return (
+                        <SortableNoteItem
+                          key={entry.id}
+                          entry={entry}
+                          startEditingNote={startEditingNote}
+                          removeEntryFromDiary={removeEntryFromDiary}
+                          saveEditedNote={saveEditedNote}
+                          editingNoteId={editingNoteId}
+                        />
+                      )
+                    }
+                    return null
+                  })}
+                </div>
+              </SortableContext>
+            </DndContext>
           )}
 
           {/* Water Intake Log */}
@@ -1707,10 +1936,10 @@ export function CalorieTracker() {
                 className="absolute inset-0 rounded-full"
                 style={{
                   background: `conic-gradient(
-                    rgb(59, 130, 246) 0% ${macroDistribution.protein}%, 
-                    rgb(34, 197, 94) ${macroDistribution.protein}% ${macroDistribution.protein + macroDistribution.carbs}%, 
-                    rgb(234, 179, 8) ${macroDistribution.protein + macroDistribution.carbs}% 100%
-                  )`,
+        rgb(59, 130, 246) 0% ${macroDistribution.protein}%, 
+        rgb(34, 197, 94) ${macroDistribution.protein}% ${macroDistribution.protein + macroDistribution.carbs}%, 
+        rgb(234, 179, 8) ${macroDistribution.protein + macroDistribution.carbs}% 100%
+      )`,
                 }}
               ></div>
               <div className="w-28 h-28 bg-gray-800 rounded-full flex items-center justify-center z-10">
