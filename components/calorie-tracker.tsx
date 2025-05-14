@@ -176,15 +176,13 @@ function SortableFoodItem({
   return (
     <div
       ref={setNodeRef}
+      {...attributes}
+      {...listeners}
       style={style}
-      className={`bg-gray-800 p-3 rounded-md flex justify-between items-center ${isDragging ? "border border-orange-500" : ""}`}
+      className={`bg-gray-800 p-3 rounded-md flex justify-between items-center cursor-grab active:cursor-grabbing ${isDragging ? "border-2 border-orange-500 shadow-lg" : ""}`}
     >
       <div className="flex items-center gap-2">
-        <div
-          {...attributes}
-          {...listeners}
-          className="cursor-grab active:cursor-grabbing p-1 hover:bg-gray-700 rounded"
-        >
+        <div className="p-1 hover:bg-gray-700 rounded">
           <GripVertical className="h-4 w-4 text-gray-500" />
         </div>
         <div>
@@ -194,7 +192,7 @@ function SortableFoodItem({
           </div>
           <div className="text-sm text-gray-400">
             {isEditing ? (
-              <div className="flex items-center gap-2 mt-1">
+              <div className="flex items-center gap-2 mt-1" onClick={(e) => e.stopPropagation()}>
                 <Input
                   type="number"
                   min="0.25"
@@ -210,7 +208,10 @@ function SortableFoodItem({
                 <Button
                   size="sm"
                   variant="ghost"
-                  onClick={handleSaveQuantity}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleSaveQuantity()
+                  }}
                   className="h-6 w-6 p-0 text-green-500 hover:text-green-400 hover:bg-gray-700"
                 >
                   <Check className="h-3 w-3" />
@@ -218,7 +219,10 @@ function SortableFoodItem({
                 <Button
                   size="sm"
                   variant="ghost"
-                  onClick={() => setIsEditing(false)}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setIsEditing(false)
+                  }}
                   className="h-6 w-6 p-0 text-gray-400 hover:text-gray-300 hover:bg-gray-700"
                 >
                   <X className="h-3 w-3" />
@@ -242,7 +246,7 @@ function SortableFoodItem({
             {Math.round(entry.nutrition.fat * entry.quantity)}g
           </div>
         </div>
-        <div className="flex">
+        <div className="flex" onClick={(e) => e.stopPropagation()}>
           {!isEditing && (
             <TooltipProvider>
               <Tooltip>
@@ -250,7 +254,10 @@ function SortableFoodItem({
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => setIsEditing(true)}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setIsEditing(true)
+                    }}
                     className="h-8 w-8 p-0 text-gray-400 hover:text-white hover:bg-gray-700"
                   >
                     <Edit className="h-4 w-4" />
@@ -269,7 +276,10 @@ function SortableFoodItem({
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => toggleFavorite(entry)}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    toggleFavorite(entry)
+                  }}
                   className="h-8 w-8 p-0 text-gray-400 hover:text-red-500 hover:bg-gray-700"
                 >
                   <Heart className={`h-4 w-4 ${entry.isFavorite ? "text-red-500 fill-red-500" : ""}`} />
@@ -287,7 +297,10 @@ function SortableFoodItem({
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => removeEntryFromDiary(entry.id)}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    removeEntryFromDiary(entry.id)
+                  }}
                   className="h-8 w-8 p-0 text-gray-400 hover:text-red-500 hover:bg-gray-700"
                 >
                   <Trash2 className="h-4 w-4" />
@@ -331,7 +344,10 @@ function SortableNoteItem({
     <div
       ref={setNodeRef}
       style={style}
-      className={`bg-gray-700 p-3 rounded-md border-l-4 border-orange-500 ${isDragging ? "border border-orange-500" : ""}`}
+      {...(editingNoteId !== entry.id ? { ...attributes, ...listeners } : {})}
+      className={`bg-gray-700 p-3 rounded-md border-l-4 border-orange-500 ${
+        isDragging ? "border-2 border-orange-500 shadow-lg" : ""
+      } ${editingNoteId !== entry.id ? "cursor-grab active:cursor-grabbing" : ""}`}
     >
       {editingNoteId === entry.id ? (
         <div className="flex flex-col gap-2">
@@ -368,23 +384,22 @@ function SortableNoteItem({
       ) : (
         <div className="flex justify-between items-start">
           <div className="flex items-start gap-2">
-            <div
-              {...attributes}
-              {...listeners}
-              className="cursor-grab active:cursor-grabbing p-1 hover:bg-gray-600 rounded mt-1"
-            >
+            <div className="p-1 hover:bg-gray-600 rounded mt-1">
               <GripVertical className="h-4 w-4 text-gray-500" />
             </div>
             <div className="whitespace-pre-wrap text-white">{entry.content}</div>
           </div>
-          <div className="flex gap-1">
+          <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => startEditingNote(entry.id)}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      startEditingNote(entry.id)
+                    }}
                     className="h-8 w-8 p-0 text-gray-300 hover:text-white hover:bg-gray-600"
                   >
                     <Edit className="h-4 w-4" />
@@ -401,7 +416,10 @@ function SortableNoteItem({
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => removeEntryFromDiary(entry.id)}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      removeEntryFromDiary(entry.id)
+                    }}
                     className="h-8 w-8 p-0 text-gray-300 hover:text-red-500 hover:bg-gray-700"
                   >
                     <Trash2 className="h-4 w-4" />
@@ -465,7 +483,7 @@ export function CalorieTracker() {
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8, // 8px movement required before drag starts
+        distance: 5, // Reduced from 8px to 5px for easier activation
       },
     }),
     useSensor(KeyboardSensor, {
