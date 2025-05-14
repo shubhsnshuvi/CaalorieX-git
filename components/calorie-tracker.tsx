@@ -173,15 +173,25 @@ function SortableFoodItem({
     setIsEditing(false)
   }
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      handleSaveQuantity()
+    } else if (e.key === "Escape") {
+      setIsEditing(false)
+      setEditedQuantity(entry.quantity)
+    }
+  }
+
   return (
     <div
       ref={setNodeRef}
-      {...attributes}
-      {...listeners}
+      {...(isEditing ? {} : { ...attributes, ...listeners })}
       style={style}
-      className={`bg-gray-800 p-3 rounded-md flex justify-between items-center cursor-grab active:cursor-grabbing ${isDragging ? "border-2 border-orange-500 shadow-lg" : ""}`}
+      className={`bg-gray-800 p-3 rounded-md flex justify-between items-center ${
+        isEditing ? "" : "cursor-grab active:cursor-grabbing"
+      } ${isDragging ? "border-2 border-orange-500 shadow-lg" : ""}`}
     >
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 w-1/3">
         <div className="p-1 hover:bg-gray-700 rounded">
           <GripVertical className="h-4 w-4 text-gray-500" />
         </div>
@@ -190,54 +200,67 @@ function SortableFoodItem({
             {entry.name}
             {entry.isFavorite && <Heart className="h-3 w-3 ml-1 text-red-500 fill-red-500" />}
           </div>
-          <div className="text-sm text-gray-400">
-            {isEditing ? (
-              <div className="flex items-center gap-2 mt-1" onClick={(e) => e.stopPropagation()}>
-                <Input
-                  type="number"
-                  min="0.25"
-                  step="0.25"
-                  value={editedQuantity}
-                  onChange={(e) => setEditedQuantity(Number(e.target.value) || 0)}
-                  className="bg-gray-700 border-gray-600 text-white h-7 w-16 px-2 py-1"
-                />
-                <span className="text-xs">
-                  × {entry.servingSize.amount}
-                  {entry.servingSize.unit}
-                </span>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleSaveQuantity()
-                  }}
-                  className="h-6 w-6 p-0 text-green-500 hover:text-green-400 hover:bg-gray-700"
-                >
-                  <Check className="h-3 w-3" />
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setIsEditing(false)
-                  }}
-                  className="h-6 w-6 p-0 text-gray-400 hover:text-gray-300 hover:bg-gray-700"
-                >
-                  <X className="h-3 w-3" />
-                </Button>
-              </div>
-            ) : (
-              <>
-                {entry.quantity} × {entry.servingSize.amount}
-                {entry.servingSize.unit}
-              </>
-            )}
+          <div className="text-xs text-gray-400">
+            {entry.servingSize.amount}
+            {entry.servingSize.unit}
           </div>
         </div>
       </div>
-      <div className="flex items-center gap-2">
+
+      {/* Center section with editable quantity */}
+      <div
+        className="flex-1 flex justify-center items-center"
+        onClick={(e) => {
+          if (!isEditing) {
+            e.stopPropagation()
+            setIsEditing(true)
+          }
+        }}
+      >
+        {isEditing ? (
+          <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+            <Input
+              type="number"
+              min="0.25"
+              step="0.25"
+              value={editedQuantity}
+              onChange={(e) => setEditedQuantity(Number(e.target.value) || 0)}
+              onKeyDown={handleKeyDown}
+              className="bg-gray-700 border-gray-600 text-white h-8 w-20 px-2 py-1"
+              autoFocus
+            />
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={(e) => {
+                e.stopPropagation()
+                handleSaveQuantity()
+              }}
+              className="h-7 w-7 p-0 text-green-500 hover:text-green-400 hover:bg-gray-700"
+            >
+              <Check className="h-3 w-3" />
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={(e) => {
+                e.stopPropagation()
+                setIsEditing(false)
+                setEditedQuantity(entry.quantity)
+              }}
+              className="h-7 w-7 p-0 text-gray-400 hover:text-gray-300 hover:bg-gray-700"
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          </div>
+        ) : (
+          <div className="text-white text-lg font-medium hover:bg-gray-700 px-3 py-1 rounded cursor-pointer">
+            {entry.quantity}×
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-center gap-2 w-1/3 justify-end">
         <div className="text-right">
           <div className="text-white">{Math.round(entry.nutrition.calories * entry.quantity)} kcal</div>
           <div className="text-xs text-gray-400">
@@ -247,29 +270,6 @@ function SortableFoodItem({
           </div>
         </div>
         <div className="flex" onClick={(e) => e.stopPropagation()}>
-          {!isEditing && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setIsEditing(true)
-                    }}
-                    className="h-8 w-8 p-0 text-gray-400 hover:text-white hover:bg-gray-700"
-                  >
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Edit quantity</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
-
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
