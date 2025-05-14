@@ -150,14 +150,18 @@ function SortableFoodItem({
   toggleFavorite,
   removeEntryFromDiary,
   editFoodQuantity,
+  editFoodServingSize,
 }: {
   entry: FoodItem
   toggleFavorite: (food: FoodItem) => void
   removeEntryFromDiary: (id: string) => void
   editFoodQuantity: (id: string, quantity: number) => void
+  editFoodServingSize: (id: string, amount: number, unit: string) => void
 }) {
   const [isEditing, setIsEditing] = useState(false)
   const [editedQuantity, setEditedQuantity] = useState(entry.quantity)
+  const [editedAmount, setEditedAmount] = useState(entry.servingSize.amount)
+  const [editedUnit, setEditedUnit] = useState(entry.servingSize.unit)
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: entry.id })
 
@@ -168,17 +172,26 @@ function SortableFoodItem({
     zIndex: isDragging ? 10 : 1,
   }
 
-  const handleSaveQuantity = () => {
-    editFoodQuantity(entry.id, editedQuantity)
+  const handleSave = () => {
+    if (editedQuantity !== entry.quantity) {
+      editFoodQuantity(entry.id, editedQuantity)
+    }
+
+    if (editedAmount !== entry.servingSize.amount || editedUnit !== entry.servingSize.unit) {
+      editFoodServingSize(entry.id, editedAmount, editedUnit)
+    }
+
     setIsEditing(false)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") {
-      handleSaveQuantity()
+      handleSave()
     } else if (e.key === "Escape") {
       setIsEditing(false)
       setEditedQuantity(entry.quantity)
+      setEditedAmount(entry.servingSize.amount)
+      setEditedUnit(entry.servingSize.unit)
     }
   }
 
@@ -200,14 +213,11 @@ function SortableFoodItem({
             {entry.name}
             {entry.isFavorite && <Heart className="h-3 w-3 ml-1 text-red-500 fill-red-500" />}
           </div>
-          <div className="text-xs text-gray-400">
-            {entry.servingSize.amount}
-            {entry.servingSize.unit}
-          </div>
+          <div className="text-xs text-gray-400">{entry.category || "Food"}</div>
         </div>
       </div>
 
-      {/* Center section with editable quantity */}
+      {/* Center section with editable quantity and serving size */}
       <div
         className="flex-1 flex justify-center items-center"
         onClick={(e) => {
@@ -218,44 +228,77 @@ function SortableFoodItem({
         }}
       >
         {isEditing ? (
-          <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-            <Input
-              type="number"
-              min="0.25"
-              step="0.25"
-              value={editedQuantity}
-              onChange={(e) => setEditedQuantity(Number(e.target.value) || 0)}
-              onKeyDown={handleKeyDown}
-              className="bg-gray-700 border-gray-600 text-white h-8 w-20 px-2 py-1"
-              autoFocus
-            />
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={(e) => {
-                e.stopPropagation()
-                handleSaveQuantity()
-              }}
-              className="h-7 w-7 p-0 text-green-500 hover:text-green-400 hover:bg-gray-700"
-            >
-              <Check className="h-3 w-3" />
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={(e) => {
-                e.stopPropagation()
-                setIsEditing(false)
-                setEditedQuantity(entry.quantity)
-              }}
-              className="h-7 w-7 p-0 text-gray-400 hover:text-gray-300 hover:bg-gray-700"
-            >
-              <X className="h-3 w-3" />
-            </Button>
+          <div className="flex flex-col items-center gap-2 py-1" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                min="0.25"
+                step="0.25"
+                value={editedQuantity}
+                onChange={(e) => setEditedQuantity(Number(e.target.value) || 0)}
+                onKeyDown={handleKeyDown}
+                className="bg-gray-700 border-gray-600 text-white h-8 w-16 px-2 py-1"
+                autoFocus
+              />
+              <span className="text-white">×</span>
+              <Input
+                type="number"
+                min="1"
+                step="1"
+                value={editedAmount}
+                onChange={(e) => setEditedAmount(Number(e.target.value) || 0)}
+                onKeyDown={handleKeyDown}
+                className="bg-gray-700 border-gray-600 text-white h-8 w-16 px-2 py-1"
+              />
+              <Select value={editedUnit} onValueChange={setEditedUnit}>
+                <SelectTrigger className="bg-gray-700 border-gray-600 text-white h-8 w-16">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="g">g</SelectItem>
+                  <SelectItem value="ml">ml</SelectItem>
+                  <SelectItem value="oz">oz</SelectItem>
+                  <SelectItem value="cup">cup</SelectItem>
+                  <SelectItem value="tbsp">tbsp</SelectItem>
+                  <SelectItem value="tsp">tsp</SelectItem>
+                  <SelectItem value="piece">piece</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleSave()
+                }}
+                className="h-7 w-7 p-0 text-green-500 hover:text-green-400 hover:bg-gray-700"
+              >
+                <Check className="h-3 w-3" />
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setIsEditing(false)
+                  setEditedQuantity(entry.quantity)
+                  setEditedAmount(entry.servingSize.amount)
+                  setEditedUnit(entry.servingSize.unit)
+                }}
+                className="h-7 w-7 p-0 text-gray-400 hover:text-gray-300 hover:bg-gray-700"
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </div>
           </div>
         ) : (
-          <div className="text-white text-lg font-medium hover:bg-gray-700 px-3 py-1 rounded cursor-pointer">
-            {entry.quantity}×
+          <div className="text-white hover:bg-gray-700 px-3 py-1 rounded cursor-pointer">
+            <span className="text-lg font-medium">
+              {entry.quantity} × {entry.servingSize.amount}
+              {entry.servingSize.unit}
+            </span>
           </div>
         )}
       </div>
@@ -1489,6 +1532,28 @@ export function CalorieTracker() {
     )
   }
 
+  // Add this function inside the CalorieTracker component, near the editFoodQuantity function
+  const editFoodServingSize = (id: string, amount: number, unit: string) => {
+    if (amount <= 0) return
+
+    setDiaryEntries((prev) =>
+      prev.map((entry) => {
+        if (isFoodItem(entry) && entry.id === id) {
+          return {
+            ...entry,
+            servingSize: {
+              ...entry.servingSize,
+              amount,
+              unit,
+              description: `${amount} ${unit}`,
+            },
+          }
+        }
+        return entry
+      }),
+    )
+  }
+
   // Remove entry from diary
   const removeEntryFromDiary = (id: string) => {
     setDiaryEntries((prev) => prev.filter((entry) => entry.id !== id))
@@ -1886,6 +1951,7 @@ export function CalorieTracker() {
                           toggleFavorite={toggleFavorite}
                           removeEntryFromDiary={removeEntryFromDiary}
                           editFoodQuantity={editFoodQuantity}
+                          editFoodServingSize={editFoodServingSize}
                         />
                       )
                     } else if (isNoteItem(entry)) {
