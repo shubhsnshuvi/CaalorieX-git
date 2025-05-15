@@ -120,6 +120,42 @@ interface DailyLog {
   updatedAt: Timestamp
 }
 
+// Unit conversion utilities
+const unitConversions = {
+  // Base conversions to grams (approximate)
+  toGrams: {
+    g: 1,
+    ml: 1, // Assuming water density for simplicity
+    oz: 28.35,
+    cup: 240, // Assuming water/liquid
+    tbsp: 15,
+    tsp: 5,
+    piece: 100, // Default assumption
+  },
+  // Descriptive names for units
+  unitNames: {
+    g: "grams",
+    ml: "milliliters",
+    oz: "ounces",
+    cup: "cups",
+    tbsp: "tablespoons",
+    tsp: "teaspoons",
+    piece: "pieces",
+  },
+}
+
+// Convert between units
+const convertAmount = (amount: number, fromUnit: string, toUnit: string): number => {
+  if (fromUnit === toUnit) return amount
+
+  // Convert to grams first (as base unit)
+  const inGrams = amount * (unitConversions.toGrams[fromUnit as keyof typeof unitConversions.toGrams] || 1)
+
+  // Then convert from grams to target unit
+  const conversionFactor = unitConversions.toGrams[toUnit as keyof typeof unitConversions.toGrams] || 1
+  return Math.round((inGrams / conversionFactor) * 100) / 100
+}
+
 // Helper function to check if an item is a food item
 const isFoodItem = (item: DiaryEntry): item is FoodItem => {
   return (item as FoodItem).nutrition !== undefined
@@ -149,17 +185,14 @@ function SortableFoodItem({
   entry,
   toggleFavorite,
   removeEntryFromDiary,
-  editFoodQuantity,
-  editFoodServingSize,
+  updateFoodServingSize,
 }: {
   entry: FoodItem
   toggleFavorite: (food: FoodItem) => void
   removeEntryFromDiary: (id: string) => void
-  editFoodQuantity: (id: string, quantity: number) => void
-  editFoodServingSize: (id: string, amount: number, unit: string) => void
+  updateFoodServingSize: (id: string, amount: number, unit: string) => void
 }) {
   const [isEditing, setIsEditing] = useState(false)
-  const [editedQuantity, setEditedQuantity] = useState(entry.quantity)
   const [editedAmount, setEditedAmount] = useState(entry.servingSize.amount)
   const [editedUnit, setEditedUnit] = useState(entry.servingSize.unit)
 
@@ -172,15 +205,17 @@ function SortableFoodItem({
     zIndex: isDragging ? 10 : 1,
   }
 
+  const handleUnitChange = (newUnit: string) => {
+    // Convert the amount when unit changes
+    const convertedAmount = convertAmount(editedAmount, editedUnit, newUnit)
+    setEditedAmount(convertedAmount)
+    setEditedUnit(newUnit)
+  }
+
   const handleSave = () => {
-    if (editedQuantity !== entry.quantity) {
-      editFoodQuantity(entry.id, editedQuantity)
-    }
-
     if (editedAmount !== entry.servingSize.amount || editedUnit !== entry.servingSize.unit) {
-      editFoodServingSize(entry.id, editedAmount, editedUnit)
+      updateFoodServingSize(entry.id, editedAmount, editedUnit)
     }
-
     setIsEditing(false)
   }
 
@@ -189,11 +224,16 @@ function SortableFoodItem({
       handleSave()
     } else if (e.key === "Escape") {
       setIsEditing(false)
-      setEditedQuantity(entry.quantity)
       setEditedAmount(entry.servingSize.amount)
       setEditedUnit(entry.servingSize.unit)
     }
   }
+
+  // Calculate total calories and nutrients based on quantity and serving size
+  const totalCalories = Math.round(entry.nutrition.calories * entry.quantity)
+  const totalProtein = Math.round(entry.nutrition.protein * entry.quantity)
+  const totalCarbs = Math.round(entry.nutrition.carbs * entry.quantity)
+  const totalFat = Math.round(entry.nutrition.fat * entry.quantity)
 
   return (
     <div
@@ -217,7 +257,7 @@ function SortableFoodItem({
         </div>
       </div>
 
-      {/* Center section with editable quantity and serving size */}
+      {/* Center section with editable serving size */}
       <div
         className="flex-1 flex justify-center items-center"
         onClick={(e) => {
@@ -232,26 +272,16 @@ function SortableFoodItem({
             <div className="flex items-center gap-2">
               <Input
                 type="number"
-                min="0.25"
-                step="0.25"
-                value={editedQuantity}
-                onChange={(e) => setEditedQuantity(Number(e.target.value) || 0)}
-                onKeyDown={handleKeyDown}
-                className="bg-gray-700 border-gray-600 text-white h-8 w-16 px-2 py-1"
-                autoFocus
-              />
-              <span className="text-white">×</span>
-              <Input
-                type="number"
                 min="1"
                 step="1"
                 value={editedAmount}
                 onChange={(e) => setEditedAmount(Number(e.target.value) || 0)}
                 onKeyDown={handleKeyDown}
-                className="bg-gray-700 border-gray-600 text-white h-8 w-16 px-2 py-1"
+                className="bg-gray-700 border-gray-600 text-white h-8 w-20 px-2 py-1"
+                autoFocus
               />
-              <Select value={editedUnit} onValueChange={setEditedUnit}>
-                <SelectTrigger className="bg-gray-700 border-gray-600 text-white h-8 w-16">
+              <Select value={editedUnit} onValueChange={handleUnitChange}>
+                <SelectTrigger className="bg-gray-700 border-gray-600 text-white h-8 w-20">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -283,7 +313,6 @@ function SortableFoodItem({
                 onClick={(e) => {
                   e.stopPropagation()
                   setIsEditing(false)
-                  setEditedQuantity(entry.quantity)
                   setEditedAmount(entry.servingSize.amount)
                   setEditedUnit(entry.servingSize.unit)
                 }}
@@ -296,7 +325,8 @@ function SortableFoodItem({
         ) : (
           <div className="text-white hover:bg-gray-700 px-3 py-1 rounded cursor-pointer">
             <span className="text-lg font-medium">
-              {entry.quantity} × {entry.servingSize.amount}
+              {entry.quantity > 1 ? `${entry.quantity} × ` : ""}
+              {entry.servingSize.amount}
               {entry.servingSize.unit}
             </span>
           </div>
@@ -305,11 +335,9 @@ function SortableFoodItem({
 
       <div className="flex items-center gap-2 w-1/3 justify-end">
         <div className="text-right">
-          <div className="text-white">{Math.round(entry.nutrition.calories * entry.quantity)} kcal</div>
+          <div className="text-white">{totalCalories} kcal</div>
           <div className="text-xs text-gray-400">
-            P: {Math.round(entry.nutrition.protein * entry.quantity)}g | C:{" "}
-            {Math.round(entry.nutrition.carbs * entry.quantity)}g | F:{" "}
-            {Math.round(entry.nutrition.fat * entry.quantity)}g
+            P: {totalProtein}g | C: {totalCarbs}g | F: {totalFat}g
           </div>
         </div>
         <div className="flex" onClick={(e) => e.stopPropagation()}>
@@ -1309,6 +1337,16 @@ export function CalorieTracker() {
     return { amount: 100, unit: "g" }
   }
 
+  // Handle serving size unit change with conversion
+  const handleServingSizeUnitChange = (newUnit: string) => {
+    // Convert the amount when unit changes
+    const convertedAmount = convertAmount(servingSize.amount, servingSize.unit, newUnit)
+    setServingSize({
+      amount: convertedAmount,
+      unit: newUnit,
+    })
+  }
+
   // Add food to diary
   const addFoodToDiary = () => {
     if (!selectedFood) return
@@ -1317,13 +1355,13 @@ export function CalorieTracker() {
 
     // Calculate nutrition based on the food source and serving size
     const nutrition = {
-      calories: calculateNutritionValue(selectedFood, "calories", servingSize.amount),
-      protein: calculateNutritionValue(selectedFood, "protein", servingSize.amount),
-      carbs: calculateNutritionValue(selectedFood, "carbohydrates", servingSize.amount),
-      fat: calculateNutritionValue(selectedFood, "fat", servingSize.amount),
-      fiber: calculateNutritionValue(selectedFood, "fiber", servingSize.amount),
-      sugar: calculateNutritionValue(selectedFood, "sugar", servingSize.amount),
-      sodium: calculateNutritionValue(selectedFood, "sodium", servingSize.amount),
+      calories: calculateNutritionValue(selectedFood, "calories", servingSize.amount, servingSize.unit),
+      protein: calculateNutritionValue(selectedFood, "protein", servingSize.amount, servingSize.unit),
+      carbs: calculateNutritionValue(selectedFood, "carbohydrates", servingSize.amount, servingSize.unit),
+      fat: calculateNutritionValue(selectedFood, "fat", servingSize.amount, servingSize.unit),
+      fiber: calculateNutritionValue(selectedFood, "fiber", servingSize.amount, servingSize.unit),
+      sugar: calculateNutritionValue(selectedFood, "sugar", servingSize.amount, servingSize.unit),
+      sodium: calculateNutritionValue(selectedFood, "sodium", servingSize.amount, servingSize.unit),
     }
 
     const newFood: FoodItem = {
@@ -1339,6 +1377,7 @@ export function CalorieTracker() {
       nutrition,
       timestamp: Date.now(),
       isFavorite: selectedFood.isFavorite || false,
+      category: selectedFood.category || "General",
     }
 
     console.log("New food entry:", newFood)
@@ -1438,10 +1477,13 @@ export function CalorieTracker() {
   }
 
   // Calculate nutrition value based on serving size
-  const calculateNutritionValue = (food: any, nutrient: string, amount: number) => {
+  const calculateNutritionValue = (food: any, nutrient: string, amount: number, unit = "g") => {
+    // Convert to grams for consistent calculation
+    const amountInGrams = unit === "g" ? amount : convertAmount(amount, unit, "g")
+
     // Default per 100g
     const baseAmount = 100
-    const ratio = amount / baseAmount
+    const ratio = amountInGrams / baseAmount
 
     // Try to get the nutrient value from different possible structures
     let value = 0
@@ -1459,6 +1501,48 @@ export function CalorieTracker() {
     }
 
     return Math.round(value * ratio * 10) / 10 // Round to 1 decimal place
+  }
+
+  // Update food serving size with unit conversion
+  const updateFoodServingSize = (id: string, amount: number, unit: string) => {
+    if (amount <= 0) return
+
+    setDiaryEntries((prev) =>
+      prev.map((entry) => {
+        if (isFoodItem(entry) && entry.id === id) {
+          // If the unit is changing, we need to adjust the nutrition values
+          const oldUnit = entry.servingSize.unit
+          const oldAmount = entry.servingSize.amount
+
+          // Calculate the ratio between old and new serving sizes in grams
+          const oldAmountInGrams = oldUnit === "g" ? oldAmount : convertAmount(oldAmount, oldUnit, "g")
+          const newAmountInGrams = unit === "g" ? amount : convertAmount(amount, unit, "g")
+          const nutritionRatio = newAmountInGrams / oldAmountInGrams
+
+          // Update the nutrition values based on the new serving size
+          const updatedNutrition = {
+            calories: Math.round(entry.nutrition.calories * nutritionRatio * 10) / 10,
+            protein: Math.round(entry.nutrition.protein * nutritionRatio * 10) / 10,
+            carbs: Math.round(entry.nutrition.carbs * nutritionRatio * 10) / 10,
+            fat: Math.round(entry.nutrition.fat * nutritionRatio * 10) / 10,
+            fiber: entry.nutrition.fiber ? Math.round(entry.nutrition.fiber * nutritionRatio * 10) / 10 : undefined,
+            sugar: entry.nutrition.sugar ? Math.round(entry.nutrition.sugar * nutritionRatio * 10) / 10 : undefined,
+            sodium: entry.nutrition.sodium ? Math.round(entry.nutrition.sodium * nutritionRatio * 10) / 10 : undefined,
+          }
+
+          return {
+            ...entry,
+            servingSize: {
+              amount,
+              unit,
+              description: `${amount} ${unit}`,
+            },
+            nutrition: updatedNutrition,
+          }
+        }
+        return entry
+      }),
+    )
   }
 
   // Add note to diary
@@ -1516,42 +1600,6 @@ export function CalorieTracker() {
       }),
     )
     setEditingNoteId(null)
-  }
-
-  // Edit food quantity
-  const editFoodQuantity = (id: string, newQuantity: number) => {
-    if (newQuantity <= 0) return
-
-    setDiaryEntries((prev) =>
-      prev.map((entry) => {
-        if (isFoodItem(entry) && entry.id === id) {
-          return { ...entry, quantity: newQuantity }
-        }
-        return entry
-      }),
-    )
-  }
-
-  // Add this function inside the CalorieTracker component, near the editFoodQuantity function
-  const editFoodServingSize = (id: string, amount: number, unit: string) => {
-    if (amount <= 0) return
-
-    setDiaryEntries((prev) =>
-      prev.map((entry) => {
-        if (isFoodItem(entry) && entry.id === id) {
-          return {
-            ...entry,
-            servingSize: {
-              ...entry.servingSize,
-              amount,
-              unit,
-              description: `${amount} ${unit}`,
-            },
-          }
-        }
-        return entry
-      }),
-    )
   }
 
   // Remove entry from diary
@@ -1950,8 +1998,7 @@ export function CalorieTracker() {
                           entry={entry}
                           toggleFavorite={toggleFavorite}
                           removeEntryFromDiary={removeEntryFromDiary}
-                          editFoodQuantity={editFoodQuantity}
-                          editFoodServingSize={editFoodServingSize}
+                          updateFoodServingSize={updateFoodServingSize}
                         />
                       )
                     } else if (isNoteItem(entry)) {
@@ -2174,10 +2221,7 @@ export function CalorieTracker() {
                     onChange={(e) => setServingSize({ ...servingSize, amount: Number.parseInt(e.target.value) || 0 })}
                     className="bg-gray-800 border-gray-700 text-white w-20 mr-2"
                   />
-                  <Select
-                    value={servingSize.unit}
-                    onValueChange={(value) => setServingSize({ ...servingSize, unit: value })}
-                  >
+                  <Select value={servingSize.unit} onValueChange={handleServingSizeUnitChange}>
                     <SelectTrigger className="bg-gray-800 border-gray-700 text-white w-24">
                       <SelectValue placeholder="Unit" />
                     </SelectTrigger>
@@ -2216,25 +2260,25 @@ export function CalorieTracker() {
                   <div className="flex justify-between">
                     <span className="text-gray-400">Calories:</span>
                     <span className="text-white">
-                      {calculateNutritionValue(selectedFood, "calories", servingSize.amount)} kcal
+                      {calculateNutritionValue(selectedFood, "calories", servingSize.amount, servingSize.unit)} kcal
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-400">Protein:</span>
                     <span className="text-white">
-                      {calculateNutritionValue(selectedFood, "protein", servingSize.amount)}g
+                      {calculateNutritionValue(selectedFood, "protein", servingSize.amount, servingSize.unit)}g
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-400">Carbs:</span>
                     <span className="text-white">
-                      {calculateNutritionValue(selectedFood, "carbohydrates", servingSize.amount)}g
+                      {calculateNutritionValue(selectedFood, "carbohydrates", servingSize.amount, servingSize.unit)}g
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-400">Fat:</span>
                     <span className="text-white">
-                      {calculateNutritionValue(selectedFood, "fat", servingSize.amount)}g
+                      {calculateNutritionValue(selectedFood, "fat", servingSize.amount, servingSize.unit)}g
                     </span>
                   </div>
                 </div>
