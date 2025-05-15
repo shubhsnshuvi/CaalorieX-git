@@ -9,14 +9,12 @@ import {
   X,
   RefreshCw,
   Edit,
-  Save,
   Calendar,
   ChevronLeft,
   ChevronRight,
   Heart,
   Search,
   GripVertical,
-  Check,
   FileText,
   Droplet,
   History,
@@ -59,9 +57,9 @@ import {
 } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Separator } from "@/components/ui/separator"
 import { DndContext } from "@dnd-kit/core"
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 
 // Types
 interface FoodItem {
@@ -82,9 +80,57 @@ interface FoodItem {
     fiber?: number
     sugar?: number
     sodium?: number
+    // Extended nutrition data
+    vitamins?: {
+      a?: number
+      c?: number
+      d?: number
+      e?: number
+      k?: number
+      b1?: number
+      b2?: number
+      b3?: number
+      b5?: number
+      b6?: number
+      b7?: number
+      b9?: number
+      b12?: number
+    }
+    minerals?: {
+      calcium?: number
+      iron?: number
+      magnesium?: number
+      phosphorus?: number
+      potassium?: number
+      sodium?: number
+      zinc?: number
+      copper?: number
+      manganese?: number
+      selenium?: number
+      fluoride?: number
+    }
+    aminoAcids?: {
+      histidine?: number
+      isoleucine?: number
+      leucine?: number
+      lysine?: number
+      methionine?: number
+      phenylalanine?: number
+      threonine?: number
+      tryptophan?: number
+      valine?: number
+    }
+    fattyAcids?: {
+      saturated?: number
+      monounsaturated?: number
+      polyunsaturated?: number
+      omega3?: number
+      omega6?: number
+      trans?: number
+    }
   }
   timestamp: number
-  category?: string // Optional now
+  category?: string
   isFavorite?: boolean
 }
 
@@ -106,6 +152,54 @@ interface DailyGoals {
   sugar?: number
   sodium?: number
   water?: number
+  // Extended nutrition goals
+  vitamins?: {
+    a?: number // IU
+    c?: number // mg
+    d?: number // IU
+    e?: number // mg
+    k?: number // mcg
+    b1?: number // mg
+    b2?: number // mg
+    b3?: number // mg
+    b5?: number // mg
+    b6?: number // mg
+    b7?: number // mcg
+    b9?: number // mcg
+    b12?: number // mcg
+  }
+  minerals?: {
+    calcium?: number // mg
+    iron?: number // mg
+    magnesium?: number // mg
+    phosphorus?: number // mg
+    potassium?: number // mg
+    sodium?: number // mg
+    zinc?: number // mg
+    copper?: number // mg
+    manganese?: number // mg
+    selenium?: number // mcg
+    fluoride?: number // mg
+  }
+  aminoAcids?: {
+    histidine?: number // mg
+    isoleucine?: number // mg
+    leucine?: number // mg
+    lysine?: number // mg
+    methionine?: number // mg
+    phenylalanine?: number // mg
+    threonine?: number // mg
+    tryptophan?: number // mg
+    valine?: number // mg
+  }
+  fattyAcids?: {
+    saturated?: number // g
+    monounsaturated?: number // g
+    polyunsaturated?: number // g
+    omega3?: number // g
+    omega6?: number // g
+    trans?: number // g
+  }
 }
 
 interface WaterIntake {
@@ -141,6 +235,57 @@ const unitConversions = {
     tbsp: "tablespoons",
     tsp: "teaspoons",
     piece: "pieces",
+  },
+}
+
+// Default nutrition goals for extended nutrients
+const defaultExtendedNutritionGoals = {
+  vitamins: {
+    a: 5000, // IU
+    c: 90, // mg
+    d: 600, // IU
+    e: 15, // mg
+    k: 120, // mcg
+    b1: 1.2, // mg
+    b2: 1.3, // mg
+    b3: 16, // mg
+    b5: 5, // mg
+    b6: 1.7, // mg
+    b7: 30, // mcg
+    b9: 400, // mcg
+    b12: 2.4, // mcg
+  },
+  minerals: {
+    calcium: 1000, // mg
+    iron: 18, // mg
+    magnesium: 400, // mg
+    phosphorus: 700, // mg
+    potassium: 3500, // mg
+    sodium: 2300, // mg
+    zinc: 11, // mg
+    copper: 0.9, // mg
+    manganese: 2.3, // mg
+    selenium: 55, // mcg
+    fluoride: 4, // mg
+  },
+  aminoAcids: {
+    histidine: 700, // mg
+    isoleucine: 1400, // mg
+    leucine: 2730, // mg
+    lysine: 2100, // mg
+    methionine: 700, // mg
+    phenylalanine: 1750, // mg
+    threonine: 1050, // mg
+    tryptophan: 280, // mg
+    valine: 1820, // mg
+  },
+  fattyAcids: {
+    saturated: 20, // g
+    monounsaturated: 44, // g
+    polyunsaturated: 22, // g
+    omega3: 1.6, // g
+    omega6: 17, // g
+    trans: 2, // g
   },
 }
 
@@ -195,6 +340,7 @@ function SortableFoodItem({
   const [isEditing, setIsEditing] = useState(false)
   const [editedAmount, setEditedAmount] = useState(entry.servingSize.amount)
   const [editedUnit, setEditedUnit] = useState(entry.servingSize.unit)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: entry.id })
 
@@ -213,6 +359,8 @@ function SortableFoodItem({
   }
 
   const handleSave = () => {
+    if (editedAmount <= 0) return
+
     if (editedAmount !== entry.servingSize.amount || editedUnit !== entry.servingSize.unit) {
       updateFoodServingSize(entry.id, editedAmount, editedUnit)
     }
@@ -228,6 +376,13 @@ function SortableFoodItem({
       setEditedUnit(entry.servingSize.unit)
     }
   }
+
+  // Focus input when editing starts
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus()
+    }
+  }, [isEditing])
 
   // Calculate total calories and nutrients based on quantity and serving size
   const totalCalories = Math.round(entry.nutrition.calories * entry.quantity)
@@ -268,59 +423,32 @@ function SortableFoodItem({
         }}
       >
         {isEditing ? (
-          <div className="flex flex-col items-center gap-2 py-1" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center gap-2">
-              <Input
-                type="number"
-                min="1"
-                step="1"
-                value={editedAmount}
-                onChange={(e) => setEditedAmount(Number(e.target.value) || 0)}
-                onKeyDown={handleKeyDown}
-                className="bg-gray-700 border-gray-600 text-white h-8 w-20 px-2 py-1"
-                autoFocus
-              />
-              <Select value={editedUnit} onValueChange={handleUnitChange}>
-                <SelectTrigger className="bg-gray-700 border-gray-600 text-white h-8 w-20">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="g">g</SelectItem>
-                  <SelectItem value="ml">ml</SelectItem>
-                  <SelectItem value="oz">oz</SelectItem>
-                  <SelectItem value="cup">cup</SelectItem>
-                  <SelectItem value="tbsp">tbsp</SelectItem>
-                  <SelectItem value="tsp">tsp</SelectItem>
-                  <SelectItem value="piece">piece</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleSave()
-                }}
-                className="h-7 w-7 p-0 text-green-500 hover:text-green-400 hover:bg-gray-700"
-              >
-                <Check className="h-3 w-3" />
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setIsEditing(false)
-                  setEditedAmount(entry.servingSize.amount)
-                  setEditedUnit(entry.servingSize.unit)
-                }}
-                className="h-7 w-7 p-0 text-gray-400 hover:text-gray-300 hover:bg-gray-700"
-              >
-                <X className="h-3 w-3" />
-              </Button>
-            </div>
+          <div className="flex items-center gap-2 py-1" onClick={(e) => e.stopPropagation()}>
+            <Input
+              type="number"
+              min="1"
+              step="1"
+              value={editedAmount}
+              onChange={(e) => setEditedAmount(Number(e.target.value) || 0)}
+              onKeyDown={handleKeyDown}
+              onBlur={handleSave}
+              className="bg-gray-700 border-gray-600 text-white h-8 w-20 px-2 py-1"
+              ref={inputRef}
+            />
+            <Select value={editedUnit} onValueChange={handleUnitChange}>
+              <SelectTrigger className="bg-gray-700 border-gray-600 text-white h-8 w-20">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="g">g</SelectItem>
+                <SelectItem value="ml">ml</SelectItem>
+                <SelectItem value="oz">oz</SelectItem>
+                <SelectItem value="cup">cup</SelectItem>
+                <SelectItem value="tbsp">tbsp</SelectItem>
+                <SelectItem value="tsp">tsp</SelectItem>
+                <SelectItem value="piece">piece</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         ) : (
           <div className="text-white hover:bg-gray-700 px-3 py-1 rounded cursor-pointer">
@@ -403,12 +531,31 @@ function SortableNoteItem({
   editingNoteId: string | null
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: entry.id })
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
     zIndex: isDragging ? 10 : 1,
+  }
+
+  // Focus textarea when editing starts
+  useEffect(() => {
+    if (editingNoteId === entry.id && textareaRef.current) {
+      textareaRef.current.focus()
+    }
+  }, [editingNoteId, entry.id])
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Save on Ctrl+Enter
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+      if (textareaRef.current) {
+        saveEditedNote(entry.id, textareaRef.current.value)
+      }
+    } else if (e.key === "Escape") {
+      startEditingNote(null)
+    }
   }
 
   return (
@@ -426,31 +573,15 @@ function SortableNoteItem({
             defaultValue={entry.content}
             className="bg-gray-800 border-gray-700 text-white"
             rows={2}
-            id={`note-edit-${entry.id}`}
+            ref={textareaRef}
+            onKeyDown={handleKeyDown}
+            onBlur={() => {
+              if (textareaRef.current) {
+                saveEditedNote(entry.id, textareaRef.current.value)
+              }
+            }}
           />
-          <div className="flex justify-end gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => startEditingNote(null)}
-              className="border-gray-600 text-white"
-            >
-              Cancel
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => {
-                const textarea = document.getElementById(`note-edit-${entry.id}`) as HTMLTextAreaElement
-                if (textarea) {
-                  saveEditedNote(entry.id, textarea.value)
-                }
-              }}
-              className="bg-orange-600 hover:bg-orange-700"
-            >
-              <Save className="h-4 w-4 mr-1" />
-              Save
-            </Button>
-          </div>
+          <div className="text-xs text-gray-400">Press Ctrl+Enter to save or click outside to save</div>
         </div>
       ) : (
         <div className="flex justify-between items-start">
@@ -508,6 +639,35 @@ function SortableNoteItem({
   )
 }
 
+// Nutrient Bar Component for detailed nutrition
+function NutrientBar({
+  name,
+  current,
+  goal,
+  unit,
+  color = "bg-blue-500",
+}: {
+  name: string
+  current: number
+  goal: number
+  unit: string
+  color?: string
+}) {
+  const percentage = Math.min(100, (current / goal) * 100)
+
+  return (
+    <div className="space-y-1">
+      <div className="flex justify-between text-xs">
+        <span className="text-gray-400">{name}</span>
+        <span className="text-white">
+          {current.toFixed(1)} / {goal} {unit}
+        </span>
+      </div>
+      <Progress value={percentage} className="h-1.5" indicatorClassName={color} />
+    </div>
+  )
+}
+
 export function CalorieTracker() {
   // Auth and user data
   const { user, userData, loading: authLoading, error: authError, refreshUserData } = useAuth()
@@ -531,6 +691,7 @@ export function CalorieTracker() {
     sugar: 50,
     sodium: 2300,
     water: 2000,
+    ...defaultExtendedNutritionGoals,
   })
   const [diaryEntries, setDiaryEntries] = useState<DiaryEntry[]>([])
   const [waterIntake, setWaterIntake] = useState<WaterIntake[]>([])
@@ -549,6 +710,7 @@ export function CalorieTracker() {
   const [showRecentFoods, setShowRecentFoods] = useState(false)
   const [showFavoriteFoods, setShowFavoriteFoods] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
+  const [expandedNutrients, setExpandedNutrients] = useState<string[]>([])
 
   // DnD sensors
   const sensors = useSensors(
@@ -587,10 +749,59 @@ export function CalorieTracker() {
           if (entry.nutrition.sodium) {
             acc.sodium += entry.nutrition.sodium * entry.quantity
           }
+
+          // Add extended nutrition data if available
+          if (entry.nutrition.vitamins) {
+            if (!acc.vitamins) acc.vitamins = {}
+            Object.entries(entry.nutrition.vitamins).forEach(([key, value]) => {
+              const k = key as keyof typeof entry.nutrition.vitamins
+              if (!acc.vitamins![k]) acc.vitamins![k] = 0
+              acc.vitamins![k] = (acc.vitamins![k] || 0) + (value || 0) * entry.quantity
+            })
+          }
+
+          if (entry.nutrition.minerals) {
+            if (!acc.minerals) acc.minerals = {}
+            Object.entries(entry.nutrition.minerals).forEach(([key, value]) => {
+              const k = key as keyof typeof entry.nutrition.minerals
+              if (!acc.minerals![k]) acc.minerals![k] = 0
+              acc.minerals![k] = (acc.minerals![k] || 0) + (value || 0) * entry.quantity
+            })
+          }
+
+          if (entry.nutrition.aminoAcids) {
+            if (!acc.aminoAcids) acc.aminoAcids = {}
+            Object.entries(entry.nutrition.aminoAcids).forEach(([key, value]) => {
+              const k = key as keyof typeof entry.nutrition.aminoAcids
+              if (!acc.aminoAcids![k]) acc.aminoAcids![k] = 0
+              acc.aminoAcids![k] = (acc.aminoAcids![k] || 0) + (value || 0) * entry.quantity
+            })
+          }
+
+          if (entry.nutrition.fattyAcids) {
+            if (!acc.fattyAcids) acc.fattyAcids = {}
+            Object.entries(entry.nutrition.fattyAcids).forEach(([key, value]) => {
+              const k = key as keyof typeof entry.nutrition.fattyAcids
+              if (!acc.fattyAcids![k]) acc.fattyAcids![k] = 0
+              acc.fattyAcids![k] = (acc.fattyAcids![k] || 0) + (value || 0) * entry.quantity
+            })
+          }
         }
         return acc
       },
-      { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, sugar: 0, sodium: 0 },
+      {
+        calories: 0,
+        protein: 0,
+        carbs: 0,
+        fat: 0,
+        fiber: 0,
+        sugar: 0,
+        sodium: 0,
+        vitamins: {},
+        minerals: {},
+        aminoAcids: {},
+        fattyAcids: {},
+      },
     )
   }, [diaryEntries])
 
@@ -664,6 +875,11 @@ export function CalorieTracker() {
     return entries
   }, [diaryEntries, sortOrder])
 
+  // Toggle expanded nutrient sections
+  const toggleNutrientSection = (section: string) => {
+    setExpandedNutrients((prev) => (prev.includes(section) ? prev.filter((s) => s !== section) : [...prev, section]))
+  }
+
   // Sync daily goals with user profile data
   useEffect(() => {
     if (userData?.dailyCalorieIntake && userData.dailyCalorieIntake !== dailyGoals.calories) {
@@ -689,7 +905,18 @@ export function CalorieTracker() {
 
         if (goalsDoc.exists()) {
           console.log("Daily goals loaded:", goalsDoc.data())
-          setDailyGoals(goalsDoc.data() as DailyGoals)
+          const loadedGoals = goalsDoc.data() as DailyGoals
+
+          // Merge with default extended nutrition goals
+          const mergedGoals = {
+            ...loadedGoals,
+            vitamins: { ...defaultExtendedNutritionGoals.vitamins, ...loadedGoals.vitamins },
+            minerals: { ...defaultExtendedNutritionGoals.minerals, ...loadedGoals.minerals },
+            aminoAcids: { ...defaultExtendedNutritionGoals.aminoAcids, ...loadedGoals.aminoAcids },
+            fattyAcids: { ...defaultExtendedNutritionGoals.fattyAcids, ...loadedGoals.fattyAcids },
+          }
+
+          setDailyGoals(mergedGoals)
         } else {
           // Create default goals if they don't exist
           const defaultGoals = {
@@ -701,6 +928,7 @@ export function CalorieTracker() {
             sugar: 50,
             sodium: 2300,
             water: 2000,
+            ...defaultExtendedNutritionGoals,
           }
           console.log("Creating default goals:", defaultGoals)
           await setDoc(goalsDocRef, defaultGoals)
@@ -894,6 +1122,11 @@ export function CalorieTracker() {
                 fiber: data.nutrients?.fiber || 0,
                 sugar: data.nutrients?.sugar || 0,
                 sodium: data.nutrients?.sodium || 0,
+                // Add extended nutrition data if available
+                vitamins: data.nutrients?.vitamins || {},
+                minerals: data.nutrients?.minerals || {},
+                aminoAcids: data.nutrients?.aminoAcids || {},
+                fattyAcids: data.nutrients?.fattyAcids || {},
               },
               category: data.category || "General",
             })
@@ -914,6 +1147,11 @@ export function CalorieTracker() {
               fiber: data.nutrients?.fiber || 0,
               sugar: data.nutrients?.sugar || 0,
               sodium: data.nutrients?.sodium || 0,
+              // Add extended nutrition data if available
+              vitamins: data.nutrients?.vitamins || {},
+              minerals: data.nutrients?.minerals || {},
+              aminoAcids: data.nutrients?.aminoAcids || {},
+              fattyAcids: data.nutrients?.fattyAcids || {},
             },
             category: data.category || "General",
           })
@@ -958,6 +1196,44 @@ export function CalorieTracker() {
         const sugar = nutrients.find((n: any) => n.nutrientNumber === "269")?.value || 0
         const sodium = nutrients.find((n: any) => n.nutrientNumber === "307")?.value || 0
 
+        // Extract extended nutrition data
+        const vitamins = {
+          a: nutrients.find((n: any) => n.nutrientNumber === "320")?.value || 0,
+          c: nutrients.find((n: any) => n.nutrientNumber === "401")?.value || 0,
+          d: nutrients.find((n: any) => n.nutrientNumber === "328")?.value || 0,
+          e: nutrients.find((n: any) => n.nutrientNumber === "323")?.value || 0,
+          k: nutrients.find((n: any) => n.nutrientNumber === "430")?.value || 0,
+          b1: nutrients.find((n: any) => n.nutrientNumber === "404")?.value || 0,
+          b2: nutrients.find((n: any) => n.nutrientNumber === "405")?.value || 0,
+          b3: nutrients.find((n: any) => n.nutrientNumber === "406")?.value || 0,
+          b5: nutrients.find((n: any) => n.nutrientNumber === "410")?.value || 0,
+          b6: nutrients.find((n: any) => n.nutrientNumber === "415")?.value || 0,
+          b9: nutrients.find((n: any) => n.nutrientNumber === "417")?.value || 0,
+          b12: nutrients.find((n: any) => n.nutrientNumber === "418")?.value || 0,
+        }
+
+        const minerals = {
+          calcium: nutrients.find((n: any) => n.nutrientNumber === "301")?.value || 0,
+          iron: nutrients.find((n: any) => n.nutrientNumber === "303")?.value || 0,
+          magnesium: nutrients.find((n: any) => n.nutrientNumber === "304")?.value || 0,
+          phosphorus: nutrients.find((n: any) => n.nutrientNumber === "305")?.value || 0,
+          potassium: nutrients.find((n: any) => n.nutrientNumber === "306")?.value || 0,
+          sodium: nutrients.find((n: any) => n.nutrientNumber === "307")?.value || 0,
+          zinc: nutrients.find((n: any) => n.nutrientNumber === "309")?.value || 0,
+          copper: nutrients.find((n: any) => n.nutrientNumber === "312")?.value || 0,
+          manganese: nutrients.find((n: any) => n.nutrientNumber === "315")?.value || 0,
+          selenium: nutrients.find((n: any) => n.nutrientNumber === "317")?.value || 0,
+        }
+
+        const fattyAcids = {
+          saturated: nutrients.find((n: any) => n.nutrientNumber === "606")?.value || 0,
+          monounsaturated: nutrients.find((n: any) => n.nutrientNumber === "645")?.value || 0,
+          polyunsaturated: nutrients.find((n: any) => n.nutrientNumber === "646")?.value || 0,
+          omega3: nutrients.find((n: any) => n.nutrientNumber === "851")?.value || 0,
+          omega6: nutrients.find((n: any) => n.nutrientNumber === "618")?.value || 0,
+          trans: nutrients.find((n: any) => n.nutrientNumber === "605")?.value || 0,
+        }
+
         return {
           id: food.fdcId,
           name: food.description || "Unknown Food",
@@ -970,6 +1246,9 @@ export function CalorieTracker() {
             fiber: fiber,
             sugar: sugar,
             sodium: sodium,
+            vitamins,
+            minerals,
+            fattyAcids,
           },
           category: food.foodCategory || "USDA",
         }
@@ -1013,6 +1292,10 @@ export function CalorieTracker() {
               fiber: data.nutrients?.fiber || 0,
               sugar: data.nutrients?.sugar || 0,
               sodium: data.nutrients?.sodium || 0,
+              vitamins: data.nutrients?.vitamins || {},
+              minerals: data.nutrients?.minerals || {},
+              aminoAcids: data.nutrients?.aminoAcids || {},
+              fattyAcids: data.nutrients?.fattyAcids || {},
             },
             category: data.category || "Custom",
           })
@@ -1042,6 +1325,15 @@ export function CalorieTracker() {
           fiber: 3.1,
           sugar: 14,
           sodium: 1,
+          vitamins: {
+            a: 64, // IU
+            c: 10.3, // mg
+            b6: 0.4, // mg
+          },
+          minerals: {
+            potassium: 422, // mg
+            magnesium: 32, // mg
+          },
         },
         category: "Fruits",
       },
@@ -1057,6 +1349,12 @@ export function CalorieTracker() {
           fiber: 4.4,
           sugar: 19,
           sodium: 2,
+          vitamins: {
+            c: 8.4, // mg
+          },
+          minerals: {
+            potassium: 195, // mg
+          },
         },
         category: "Fruits",
       },
@@ -1072,6 +1370,10 @@ export function CalorieTracker() {
           fiber: 0.6,
           sugar: 0.1,
           sodium: 1,
+          minerals: {
+            magnesium: 12, // mg
+            phosphorus: 43, // mg
+          },
         },
         category: "Grains",
       },
@@ -1087,6 +1389,10 @@ export function CalorieTracker() {
           fiber: 0.8,
           sugar: 1.5,
           sodium: 150,
+          vitamins: {
+            b1: 0.1, // mg
+            b3: 1.3, // mg
+          },
         },
         category: "Grains",
       },
@@ -1102,6 +1408,18 @@ export function CalorieTracker() {
           fiber: 0,
           sugar: 0,
           sodium: 74,
+          vitamins: {
+            b3: 13.7, // mg
+            b6: 0.6, // mg
+          },
+          minerals: {
+            phosphorus: 228, // mg
+            selenium: 27.6, // mcg
+          },
+          aminoAcids: {
+            leucine: 2331, // mg
+            lysine: 2706, // mg
+          },
         },
         category: "Protein",
       },
@@ -1117,6 +1435,20 @@ export function CalorieTracker() {
           fiber: 0,
           sugar: 0.4,
           sodium: 71,
+          vitamins: {
+            a: 270, // IU
+            d: 41, // IU
+            b12: 0.6, // mcg
+          },
+          minerals: {
+            iron: 0.9, // mg
+            phosphorus: 99, // mg
+          },
+          fattyAcids: {
+            saturated: 1.6, // g
+            monounsaturated: 1.9, // g
+            polyunsaturated: 0.7, // g
+          },
         },
         category: "Protein",
       },
@@ -1132,6 +1464,20 @@ export function CalorieTracker() {
           fiber: 0,
           sugar: 4.8,
           sodium: 44,
+          vitamins: {
+            a: 102, // IU
+            d: 49, // IU
+            b12: 0.5, // mcg
+          },
+          minerals: {
+            calcium: 113, // mg
+            phosphorus: 84, // mg
+          },
+          fattyAcids: {
+            saturated: 1.9, // g
+            monounsaturated: 0.8, // g
+            polyunsaturated: 0.2, // g
+          },
         },
         category: "Dairy",
       },
@@ -1147,6 +1493,16 @@ export function CalorieTracker() {
           fiber: 2.2,
           sugar: 0.4,
           sodium: 79,
+          vitamins: {
+            a: 9377, // IU
+            c: 28.1, // mg
+            k: 483, // mcg
+          },
+          minerals: {
+            calcium: 99, // mg
+            iron: 2.7, // mg
+            magnesium: 79, // mg
+          },
         },
         category: "Vegetables",
       },
@@ -1162,6 +1518,16 @@ export function CalorieTracker() {
           fiber: 7.9,
           sugar: 1.8,
           sodium: 2,
+          vitamins: {
+            b1: 0.2, // mg
+            b5: 0.6, // mg
+            b9: 179, // mcg
+          },
+          minerals: {
+            iron: 3.3, // mg
+            phosphorus: 180, // mg
+            potassium: 365, // mg
+          },
         },
         category: "Legumes",
       },
@@ -1177,6 +1543,21 @@ export function CalorieTracker() {
           fiber: 0,
           sugar: 0,
           sodium: 59,
+          vitamins: {
+            d: 570, // IU
+            b3: 8.6, // mg
+            b12: 2.6, // mcg
+          },
+          minerals: {
+            phosphorus: 218, // mg
+            selenium: 36.5, // mcg
+          },
+          fattyAcids: {
+            saturated: 2.1, // g
+            monounsaturated: 3.8, // g
+            polyunsaturated: 3.9, // g
+            omega3: 2.3, // g
+          },
         },
         category: "Protein",
       },
@@ -1362,6 +1743,125 @@ export function CalorieTracker() {
       fiber: calculateNutritionValue(selectedFood, "fiber", servingSize.amount, servingSize.unit),
       sugar: calculateNutritionValue(selectedFood, "sugar", servingSize.amount, servingSize.unit),
       sodium: calculateNutritionValue(selectedFood, "sodium", servingSize.amount, servingSize.unit),
+      // Add extended nutrition data if available
+      vitamins: selectedFood.nutrients?.vitamins
+        ? {
+            a: calculateNutritionValue(selectedFood, "vitamins.a", servingSize.amount, servingSize.unit),
+            c: calculateNutritionValue(selectedFood, "vitamins.c", servingSize.amount, servingSize.unit),
+            d: calculateNutritionValue(selectedFood, "vitamins.d", servingSize.amount, servingSize.unit),
+            e: calculateNutritionValue(selectedFood, "vitamins.e", servingSize.amount, servingSize.unit),
+            k: calculateNutritionValue(selectedFood, "vitamins.k", servingSize.amount, servingSize.unit),
+            b1: calculateNutritionValue(selectedFood, "vitamins.b1", servingSize.amount, servingSize.unit),
+            b2: calculateNutritionValue(selectedFood, "vitamins.b2", servingSize.amount, servingSize.unit),
+            b3: calculateNutritionValue(selectedFood, "vitamins.b3", servingSize.amount, servingSize.unit),
+            b5: calculateNutritionValue(selectedFood, "vitamins.b5", servingSize.amount, servingSize.unit),
+            b6: calculateNutritionValue(selectedFood, "vitamins.b6", servingSize.amount, servingSize.unit),
+            b9: calculateNutritionValue(selectedFood, "vitamins.b9", servingSize.amount, servingSize.unit),
+            b12: calculateNutritionValue(selectedFood, "vitamins.b12", servingSize.amount, servingSize.unit),
+          }
+        : undefined,
+      minerals: selectedFood.nutrients?.minerals
+        ? {
+            calcium: calculateNutritionValue(selectedFood, "minerals.calcium", servingSize.amount, servingSize.unit),
+            iron: calculateNutritionValue(selectedFood, "minerals.iron", servingSize.amount, servingSize.unit),
+            magnesium: calculateNutritionValue(
+              selectedFood,
+              "minerals.magnesium",
+              servingSize.amount,
+              servingSize.unit,
+            ),
+            phosphorus: calculateNutritionValue(
+              selectedFood,
+              "minerals.phosphorus",
+              servingSize.amount,
+              servingSize.unit,
+            ),
+            potassium: calculateNutritionValue(
+              selectedFood,
+              "minerals.potassium",
+              servingSize.amount,
+              servingSize.unit,
+            ),
+            sodium: calculateNutritionValue(selectedFood, "minerals.sodium", servingSize.amount, servingSize.unit),
+            zinc: calculateNutritionValue(selectedFood, "minerals.zinc", servingSize.amount, servingSize.unit),
+            copper: calculateNutritionValue(selectedFood, "minerals.copper", servingSize.amount, servingSize.unit),
+            manganese: calculateNutritionValue(
+              selectedFood,
+              "minerals.manganese",
+              servingSize.amount,
+              servingSize.unit,
+            ),
+            selenium: calculateNutritionValue(selectedFood, "minerals.selenium", servingSize.amount, servingSize.unit),
+          }
+        : undefined,
+      aminoAcids: selectedFood.nutrients?.aminoAcids
+        ? {
+            histidine: calculateNutritionValue(
+              selectedFood,
+              "aminoAcids.histidine",
+              servingSize.amount,
+              servingSize.unit,
+            ),
+            isoleucine: calculateNutritionValue(
+              selectedFood,
+              "aminoAcids.isoleucine",
+              servingSize.amount,
+              servingSize.unit,
+            ),
+            leucine: calculateNutritionValue(selectedFood, "aminoAcids.leucine", servingSize.amount, servingSize.unit),
+            lysine: calculateNutritionValue(selectedFood, "aminoAcids.lysine", servingSize.amount, servingSize.unit),
+            methionine: calculateNutritionValue(
+              selectedFood,
+              "aminoAcids.methionine",
+              servingSize.amount,
+              servingSize.unit,
+            ),
+            phenylalanine: calculateNutritionValue(
+              selectedFood,
+              "aminoAcids.phenylalanine",
+              servingSize.amount,
+              servingSize.unit,
+            ),
+            threonine: calculateNutritionValue(
+              selectedFood,
+              "aminoAcids.threonine",
+              servingSize.amount,
+              servingSize.unit,
+            ),
+            tryptophan: calculateNutritionValue(
+              selectedFood,
+              "aminoAcids.tryptophan",
+              servingSize.amount,
+              servingSize.unit,
+            ),
+            valine: calculateNutritionValue(selectedFood, "aminoAcids.valine", servingSize.amount, servingSize.unit),
+          }
+        : undefined,
+      fattyAcids: selectedFood.nutrients?.fattyAcids
+        ? {
+            saturated: calculateNutritionValue(
+              selectedFood,
+              "fattyAcids.saturated",
+              servingSize.amount,
+              servingSize.unit,
+            ),
+            monounsaturated: calculateNutritionValue(
+              selectedFood,
+              "fattyAcids.monounsaturated",
+              servingSize.amount,
+              servingSize.unit,
+            ),
+            polyunsaturated: calculateNutritionValue(
+              selectedFood,
+              "fattyAcids.polyunsaturated",
+              servingSize.amount,
+              servingSize.unit,
+            ),
+            omega3: calculateNutritionValue(selectedFood, "fattyAcids.omega3", servingSize.amount, servingSize.unit),
+            omega6: calculateNutritionValue(selectedFood, "fattyAcids.omega6", servingSize.amount, servingSize.unit),
+            trans: calculateNutritionValue(selectedFood, "fattyAcids.trans", servingSize.amount, servingSize.unit),
+          }
+        : undefined,
     }
 
     const newFood: FoodItem = {
@@ -1488,16 +1988,24 @@ export function CalorieTracker() {
     // Try to get the nutrient value from different possible structures
     let value = 0
 
-    if (food.nutrients && food.nutrients[nutrient] !== undefined) {
-      value = food.nutrients[nutrient]
-    } else if (food.nutrition && food.nutrition[nutrient] !== undefined) {
-      value = food.nutrition[nutrient]
-    } else if (food.nutritionalInfo && food.nutritionalInfo[nutrient] !== undefined) {
-      value = food.nutritionalInfo[nutrient]
-    } else if (nutrient === "carbs" && food.nutrients && food.nutrients.carbohydrates !== undefined) {
-      value = food.nutrients.carbohydrates
-    } else if (nutrient === "carbs" && food.nutrition && food.nutrition.carbohydrates !== undefined) {
-      value = food.nutrition.carbohydrates
+    // Handle nested properties like "vitamins.a"
+    if (nutrient.includes(".")) {
+      const [category, specificNutrient] = nutrient.split(".")
+      if (food.nutrients && food.nutrients[category] && food.nutrients[category][specificNutrient] !== undefined) {
+        value = food.nutrients[category][specificNutrient]
+      }
+    } else {
+      if (food.nutrients && food.nutrients[nutrient] !== undefined) {
+        value = food.nutrients[nutrient]
+      } else if (food.nutrition && food.nutrition[nutrient] !== undefined) {
+        value = food.nutrition[nutrient]
+      } else if (food.nutritionalInfo && food.nutritionalInfo[nutrient] !== undefined) {
+        value = food.nutritionalInfo[nutrient]
+      } else if (nutrient === "carbs" && food.nutrients && food.nutrients.carbohydrates !== undefined) {
+        value = food.nutrients.carbohydrates
+      } else if (nutrient === "carbs" && food.nutrition && food.nutrition.carbohydrates !== undefined) {
+        value = food.nutrition.carbohydrates
+      }
     }
 
     return Math.round(value * ratio * 10) / 10 // Round to 1 decimal place
@@ -1528,6 +2036,47 @@ export function CalorieTracker() {
             fiber: entry.nutrition.fiber ? Math.round(entry.nutrition.fiber * nutritionRatio * 10) / 10 : undefined,
             sugar: entry.nutrition.sugar ? Math.round(entry.nutrition.sugar * nutritionRatio * 10) / 10 : undefined,
             sodium: entry.nutrition.sodium ? Math.round(entry.nutrition.sodium * nutritionRatio * 10) / 10 : undefined,
+          }
+
+          // Update extended nutrition data if available
+          if (entry.nutrition.vitamins) {
+            updatedNutrition.vitamins = {}
+            Object.entries(entry.nutrition.vitamins).forEach(([key, value]) => {
+              if (value !== undefined) {
+                updatedNutrition.vitamins![key as keyof typeof entry.nutrition.vitamins] =
+                  Math.round(value * nutritionRatio * 10) / 10
+              }
+            })
+          }
+
+          if (entry.nutrition.minerals) {
+            updatedNutrition.minerals = {}
+            Object.entries(entry.nutrition.minerals).forEach(([key, value]) => {
+              if (value !== undefined) {
+                updatedNutrition.minerals![key as keyof typeof entry.nutrition.minerals] =
+                  Math.round(value * nutritionRatio * 10) / 10
+              }
+            })
+          }
+
+          if (entry.nutrition.aminoAcids) {
+            updatedNutrition.aminoAcids = {}
+            Object.entries(entry.nutrition.aminoAcids).forEach(([key, value]) => {
+              if (value !== undefined) {
+                updatedNutrition.aminoAcids![key as keyof typeof entry.nutrition.aminoAcids] =
+                  Math.round(value * nutritionRatio * 10) / 10
+              }
+            })
+          }
+
+          if (entry.nutrition.fattyAcids) {
+            updatedNutrition.fattyAcids = {}
+            Object.entries(entry.nutrition.fattyAcids).forEach(([key, value]) => {
+              if (value !== undefined) {
+                updatedNutrition.fattyAcids![key as keyof typeof entry.nutrition.fattyAcids] =
+                  Math.round(value * nutritionRatio * 10) / 10
+              }
+            })
           }
 
           return {
@@ -2190,6 +2739,140 @@ export function CalorieTracker() {
             </div>
           </div>
 
+          {/* Detailed Micronutrient Sections */}
+          <div className="mt-6 space-y-4">
+            <Accordion type="multiple" value={expandedNutrients} className="bg-gray-800 rounded-md">
+              {/* Vitamins Section */}
+              <AccordionItem value="vitamins" className="border-b border-gray-700">
+                <AccordionTrigger
+                  onClick={() => toggleNutrientSection("vitamins")}
+                  className="px-4 py-2 hover:bg-gray-700 text-white"
+                >
+                  Vitamins
+                </AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                  <div className="space-y-2">
+                    {dailyGoals.vitamins &&
+                      Object.entries(dailyGoals.vitamins).map(([key, goal]) => {
+                        if (!goal) return null
+                        const current = dailyTotals.vitamins?.[key as keyof typeof dailyTotals.vitamins] || 0
+                        const vitaminName = getVitaminName(key)
+                        const unit = getVitaminUnit(key)
+                        const color = getVitaminColor(key)
+
+                        return (
+                          <NutrientBar
+                            key={key}
+                            name={vitaminName}
+                            current={current}
+                            goal={goal}
+                            unit={unit}
+                            color={color}
+                          />
+                        )
+                      })}
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+
+              {/* Minerals Section */}
+              <AccordionItem value="minerals" className="border-b border-gray-700">
+                <AccordionTrigger
+                  onClick={() => toggleNutrientSection("minerals")}
+                  className="px-4 py-2 hover:bg-gray-700 text-white"
+                >
+                  Minerals
+                </AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                  <div className="space-y-2">
+                    {dailyGoals.minerals &&
+                      Object.entries(dailyGoals.minerals).map(([key, goal]) => {
+                        if (!goal) return null
+                        const current = dailyTotals.minerals?.[key as keyof typeof dailyTotals.minerals] || 0
+                        const mineralName = getMineralName(key)
+                        const unit = getMineralUnit(key)
+                        const color = getMineralColor(key)
+
+                        return (
+                          <NutrientBar
+                            key={key}
+                            name={mineralName}
+                            current={current}
+                            goal={goal}
+                            unit={unit}
+                            color={color}
+                          />
+                        )
+                      })}
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+
+              {/* Amino Acids Section */}
+              <AccordionItem value="aminoAcids" className="border-b border-gray-700">
+                <AccordionTrigger
+                  onClick={() => toggleNutrientSection("aminoAcids")}
+                  className="px-4 py-2 hover:bg-gray-700 text-white"
+                >
+                  Amino Acids
+                </AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                  <div className="space-y-2">
+                    {dailyGoals.aminoAcids &&
+                      Object.entries(dailyGoals.aminoAcids).map(([key, goal]) => {
+                        if (!goal) return null
+                        const current = dailyTotals.aminoAcids?.[key as keyof typeof dailyTotals.aminoAcids] || 0
+                        const aminoAcidName = getAminoAcidName(key)
+
+                        return (
+                          <NutrientBar
+                            key={key}
+                            name={aminoAcidName}
+                            current={current}
+                            goal={goal}
+                            unit="mg"
+                            color="bg-purple-500"
+                          />
+                        )
+                      })}
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+
+              {/* Fatty Acids Section */}
+              <AccordionItem value="fattyAcids" className="border-b-0">
+                <AccordionTrigger
+                  onClick={() => toggleNutrientSection("fattyAcids")}
+                  className="px-4 py-2 hover:bg-gray-700 text-white"
+                >
+                  Fatty Acids
+                </AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                  <div className="space-y-2">
+                    {dailyGoals.fattyAcids &&
+                      Object.entries(dailyGoals.fattyAcids).map(([key, goal]) => {
+                        if (!goal) return null
+                        const current = dailyTotals.fattyAcids?.[key as keyof typeof dailyTotals.fattyAcids] || 0
+                        const fattyAcidName = getFattyAcidName(key)
+                        const color = getFattyAcidColor(key)
+
+                        return (
+                          <NutrientBar
+                            key={key}
+                            name={fattyAcidName}
+                            current={current}
+                            goal={goal}
+                            unit="g"
+                            color={color}
+                          />
+                        )
+                      })}
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          </div>
+
           {/* Daily Goals Button */}
           <div className="mt-6">
             <Button onClick={() => setActiveTab("goals")} className="w-full bg-gray-700 hover:bg-gray-600 text-white">
@@ -2419,7 +3102,7 @@ export function CalorieTracker() {
 
       {/* Goals Dialog */}
       <Dialog open={activeTab === "goals"} onOpenChange={(open) => !open && setActiveTab("diary")}>
-        <DialogContent className="bg-gray-900 text-white border-gray-700">
+        <DialogContent className="bg-gray-900 text-white border-gray-700 max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Nutrition Goals</DialogTitle>
             <DialogDescription className="text-gray-400">Set your daily nutrition targets</DialogDescription>
@@ -2478,59 +3161,193 @@ export function CalorieTracker() {
               </div>
             </div>
 
-            <Separator className="bg-gray-700" />
+            <Accordion type="multiple" className="bg-gray-800 rounded-md">
+              {/* Basic Nutrients */}
+              <AccordionItem value="basic-nutrients" className="border-b border-gray-700">
+                <AccordionTrigger className="px-4 py-2 hover:bg-gray-700 text-white">Basic Nutrients</AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm mb-1 text-white">Fiber</label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          value={dailyGoals.fiber || 30}
+                          onChange={(e) => updateDailyGoals({ fiber: Number.parseInt(e.target.value) || 0 })}
+                          className="bg-gray-800 border-gray-700 text-white"
+                        />
+                        <span className="text-white">g</span>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm mb-1 text-white">Sugar</label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          value={dailyGoals.sugar || 50}
+                          onChange={(e) => updateDailyGoals({ sugar: Number.parseInt(e.target.value) || 0 })}
+                          className="bg-gray-800 border-gray-700 text-white"
+                        />
+                        <span className="text-white">g</span>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm mb-1 text-white">Sodium</label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          value={dailyGoals.sodium || 2300}
+                          onChange={(e) => updateDailyGoals({ sodium: Number.parseInt(e.target.value) || 0 })}
+                          className="bg-gray-800 border-gray-700 text-white"
+                        />
+                        <span className="text-white">mg</span>
+                      </div>
+                    </div>
+                  </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm mb-1 text-white">Fiber</label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="number"
-                    value={dailyGoals.fiber || 30}
-                    onChange={(e) => updateDailyGoals({ fiber: Number.parseInt(e.target.value) || 0 })}
-                    className="bg-gray-800 border-gray-700 text-white"
-                  />
-                  <span className="text-white">g</span>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm mb-1 text-white">Sugar</label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="number"
-                    value={dailyGoals.sugar || 50}
-                    onChange={(e) => updateDailyGoals({ sugar: Number.parseInt(e.target.value) || 0 })}
-                    className="bg-gray-800 border-gray-700 text-white"
-                  />
-                  <span className="text-white">g</span>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm mb-1 text-white">Sodium</label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="number"
-                    value={dailyGoals.sodium || 2300}
-                    onChange={(e) => updateDailyGoals({ sodium: Number.parseInt(e.target.value) || 0 })}
-                    className="bg-gray-800 border-gray-700 text-white"
-                  />
-                  <span className="text-white">mg</span>
-                </div>
-              </div>
-            </div>
+                  <div className="mt-4">
+                    <label className="block text-sm mb-1 text-white">Water</label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        value={dailyGoals.water || 2000}
+                        onChange={(e) => updateDailyGoals({ water: Number.parseInt(e.target.value) || 0 })}
+                        className="bg-gray-800 border-gray-700 text-white"
+                      />
+                      <span className="text-white">ml</span>
+                    </div>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
 
-            <div>
-              <label className="block text-sm mb-1 text-white">Water</label>
-              <div className="flex items-center gap-2">
-                <Input
-                  type="number"
-                  value={dailyGoals.water || 2000}
-                  onChange={(e) => updateDailyGoals({ water: Number.parseInt(e.target.value) || 0 })}
-                  className="bg-gray-800 border-gray-700 text-white"
-                />
-                <span className="text-white">ml</span>
-              </div>
-            </div>
+              {/* Vitamins */}
+              <AccordionItem value="vitamins" className="border-b border-gray-700">
+                <AccordionTrigger className="px-4 py-2 hover:bg-gray-700 text-white">Vitamins</AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {dailyGoals.vitamins &&
+                      Object.entries(dailyGoals.vitamins).map(([key, value]) => (
+                        <div key={key}>
+                          <label className="block text-sm mb-1 text-white">{getVitaminName(key)}</label>
+                          <div className="flex items-center gap-2">
+                            <Input
+                              type="number"
+                              value={value || 0}
+                              onChange={(e) => {
+                                const newValue = Number.parseInt(e.target.value) || 0
+                                updateDailyGoals({
+                                  vitamins: {
+                                    ...dailyGoals.vitamins,
+                                    [key]: newValue,
+                                  },
+                                })
+                              }}
+                              className="bg-gray-800 border-gray-700 text-white"
+                            />
+                            <span className="text-white">{getVitaminUnit(key)}</span>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+
+              {/* Minerals */}
+              <AccordionItem value="minerals" className="border-b border-gray-700">
+                <AccordionTrigger className="px-4 py-2 hover:bg-gray-700 text-white">Minerals</AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {dailyGoals.minerals &&
+                      Object.entries(dailyGoals.minerals).map(([key, value]) => (
+                        <div key={key}>
+                          <label className="block text-sm mb-1 text-white">{getMineralName(key)}</label>
+                          <div className="flex items-center gap-2">
+                            <Input
+                              type="number"
+                              value={value || 0}
+                              onChange={(e) => {
+                                const newValue = Number.parseInt(e.target.value) || 0
+                                updateDailyGoals({
+                                  minerals: {
+                                    ...dailyGoals.minerals,
+                                    [key]: newValue,
+                                  },
+                                })
+                              }}
+                              className="bg-gray-800 border-gray-700 text-white"
+                            />
+                            <span className="text-white">{getMineralUnit(key)}</span>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+
+              {/* Amino Acids */}
+              <AccordionItem value="amino-acids" className="border-b border-gray-700">
+                <AccordionTrigger className="px-4 py-2 hover:bg-gray-700 text-white">Amino Acids</AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {dailyGoals.aminoAcids &&
+                      Object.entries(dailyGoals.aminoAcids).map(([key, value]) => (
+                        <div key={key}>
+                          <label className="block text-sm mb-1 text-white">{getAminoAcidName(key)}</label>
+                          <div className="flex items-center gap-2">
+                            <Input
+                              type="number"
+                              value={value || 0}
+                              onChange={(e) => {
+                                const newValue = Number.parseInt(e.target.value) || 0
+                                updateDailyGoals({
+                                  aminoAcids: {
+                                    ...dailyGoals.aminoAcids,
+                                    [key]: newValue,
+                                  },
+                                })
+                              }}
+                              className="bg-gray-800 border-gray-700 text-white"
+                            />
+                            <span className="text-white">mg</span>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+
+              {/* Fatty Acids */}
+              <AccordionItem value="fatty-acids" className="border-b-0">
+                <AccordionTrigger className="px-4 py-2 hover:bg-gray-700 text-white">Fatty Acids</AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {dailyGoals.fattyAcids &&
+                      Object.entries(dailyGoals.fattyAcids).map(([key, value]) => (
+                        <div key={key}>
+                          <label className="block text-sm mb-1 text-white">{getFattyAcidName(key)}</label>
+                          <div className="flex items-center gap-2">
+                            <Input
+                              type="number"
+                              value={value || 0}
+                              onChange={(e) => {
+                                const newValue = Number.parseInt(e.target.value) || 0
+                                updateDailyGoals({
+                                  fattyAcids: {
+                                    ...dailyGoals.fattyAcids,
+                                    [key]: newValue,
+                                  },
+                                })
+                              }}
+                              className="bg-gray-800 border-gray-700 text-white"
+                            />
+                            <span className="text-white">g</span>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
           </div>
 
           <DialogFooter>
@@ -2542,4 +3359,140 @@ export function CalorieTracker() {
       </Dialog>
     </div>
   )
+}
+
+// Helper functions for nutrient names, units, and colors
+
+// Vitamin helpers
+function getVitaminName(key: string): string {
+  const names: Record<string, string> = {
+    a: "Vitamin A",
+    c: "Vitamin C",
+    d: "Vitamin D",
+    e: "Vitamin E",
+    k: "Vitamin K",
+    b1: "Vitamin B1 (Thiamine)",
+    b2: "Vitamin B2 (Riboflavin)",
+    b3: "Vitamin B3 (Niacin)",
+    b5: "Vitamin B5 (Pantothenic Acid)",
+    b6: "Vitamin B6 (Pyridoxine)",
+    b7: "Vitamin B7 (Biotin)",
+    b9: "Vitamin B9 (Folate)",
+    b12: "Vitamin B12 (Cobalamin)",
+  }
+  return names[key] || `Vitamin ${key.toUpperCase()}`
+}
+
+function getVitaminUnit(key: string): string {
+  const units: Record<string, string> = {
+    a: "IU",
+    d: "IU",
+    b7: "mcg",
+    b9: "mcg",
+    b12: "mcg",
+    k: "mcg",
+  }
+  return units[key] || "mg"
+}
+
+function getVitaminColor(key: string): string {
+  const colors: Record<string, string> = {
+    a: "bg-orange-500",
+    c: "bg-yellow-500",
+    d: "bg-yellow-600",
+    e: "bg-green-500",
+    k: "bg-green-600",
+    b1: "bg-blue-400",
+    b2: "bg-blue-500",
+    b3: "bg-blue-600",
+    b5: "bg-indigo-400",
+    b6: "bg-indigo-500",
+    b7: "bg-indigo-600",
+    b9: "bg-purple-500",
+    b12: "bg-purple-600",
+  }
+  return colors[key] || "bg-blue-500"
+}
+
+// Mineral helpers
+function getMineralName(key: string): string {
+  const names: Record<string, string> = {
+    calcium: "Calcium",
+    iron: "Iron",
+    magnesium: "Magnesium",
+    phosphorus: "Phosphorus",
+    potassium: "Potassium",
+    sodium: "Sodium",
+    zinc: "Zinc",
+    copper: "Copper",
+    manganese: "Manganese",
+    selenium: "Selenium",
+    fluoride: "Fluoride",
+  }
+  return names[key] || key.charAt(0).toUpperCase() + key.slice(1)
+}
+
+function getMineralUnit(key: string): string {
+  const units: Record<string, string> = {
+    selenium: "mcg",
+  }
+  return units[key] || "mg"
+}
+
+function getMineralColor(key: string): string {
+  const colors: Record<string, string> = {
+    calcium: "bg-gray-400",
+    iron: "bg-red-600",
+    magnesium: "bg-green-500",
+    phosphorus: "bg-yellow-500",
+    potassium: "bg-purple-500",
+    sodium: "bg-blue-500",
+    zinc: "bg-gray-500",
+    copper: "bg-orange-500",
+    manganese: "bg-pink-500",
+    selenium: "bg-yellow-600",
+    fluoride: "bg-blue-400",
+  }
+  return colors[key] || "bg-gray-500"
+}
+
+// Amino acid helpers
+function getAminoAcidName(key: string): string {
+  const names: Record<string, string> = {
+    histidine: "Histidine",
+    isoleucine: "Isoleucine",
+    leucine: "Leucine",
+    lysine: "Lysine",
+    methionine: "Methionine",
+    phenylalanine: "Phenylalanine",
+    threonine: "Threonine",
+    tryptophan: "Tryptophan",
+    valine: "Valine",
+  }
+  return names[key] || key.charAt(0).toUpperCase() + key.slice(1)
+}
+
+// Fatty acid helpers
+function getFattyAcidName(key: string): string {
+  const names: Record<string, string> = {
+    saturated: "Saturated Fat",
+    monounsaturated: "Monounsaturated Fat",
+    polyunsaturated: "Polyunsaturated Fat",
+    omega3: "Omega-3 Fatty Acids",
+    omega6: "Omega-6 Fatty Acids",
+    trans: "Trans Fat",
+  }
+  return names[key] || key.charAt(0).toUpperCase() + key.slice(1)
+}
+
+function getFattyAcidColor(key: string): string {
+  const colors: Record<string, string> = {
+    saturated: "bg-red-500",
+    monounsaturated: "bg-yellow-500",
+    polyunsaturated: "bg-green-500",
+    omega3: "bg-blue-500",
+    omega6: "bg-purple-500",
+    trans: "bg-red-600",
+  }
+  return colors[key] || "bg-yellow-500"
 }
