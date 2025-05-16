@@ -668,6 +668,82 @@ function NutrientBar({
   )
 }
 
+// Nutrient Chart Component for visualizing micronutrient distributions
+function NutrientChart({
+  distribution,
+  getColor,
+  getName,
+  title,
+  emptyMessage = "No data available",
+}: {
+  distribution: Record<string, number>
+  getColor: (key: string) => string
+  getName: (key: string) => string
+  title: string
+  emptyMessage?: string
+}) {
+  const entries = Object.entries(distribution)
+
+  if (entries.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-40">
+        <div className="text-gray-400">{emptyMessage}</div>
+      </div>
+    )
+  }
+
+  // Sort entries by percentage (descending)
+  entries.sort((a, b) => b[1] - a[1])
+
+  // Calculate cumulative percentages for the conic gradient
+  let cumulativePercentage = 0
+  const gradientStops = entries.map(([key, percentage]) => {
+    const start = cumulativePercentage
+    cumulativePercentage += percentage
+    return {
+      key,
+      start,
+      end: cumulativePercentage,
+      color: getColor(key).replace("bg-", ""),
+    }
+  })
+
+  // Generate the conic gradient CSS
+  const conicGradient = `conic-gradient(${gradientStops
+    .map((stop) => `${tailwindBgToColor(stop.color)} ${stop.start}% ${stop.end}%`)
+    .join(", ")})`
+
+  return (
+    <div className="flex flex-col md:flex-row gap-6 items-center mb-6">
+      <div className="w-40 h-40 rounded-full border-8 border-gray-700 flex items-center justify-center relative">
+        <div className="absolute inset-0 rounded-full" style={{ background: conicGradient }}></div>
+        <div className="w-28 h-28 bg-gray-800 rounded-full flex items-center justify-center z-10">
+          <div className="text-center">
+            <div className="text-lg font-bold text-white">{title}</div>
+            <div className="text-xs text-gray-400">{entries.length} tracked</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-center flex-1">
+        {entries.slice(0, 6).map(([key, percentage]) => (
+          <div key={key}>
+            <div className="flex items-center justify-center gap-1">
+              <div className={`w-3 h-3 rounded-full ${getColor(key)}`}></div>
+              <span className="text-white font-medium text-sm truncate">{getName(key)}</span>
+            </div>
+            <div className="text-lg font-bold text-white">{Math.round(percentage)}%</div>
+            <div className="text-xs text-gray-400">
+              {Math.round(dailyTotals[key as keyof typeof dailyTotals] || 0)} /{" "}
+              {dailyGoals[key as keyof typeof dailyGoals] || 0}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export function CalorieTracker() {
   // Auth and user data
   const { user, userData, loading: authLoading, error: authError, refreshUserData } = useAuth()
@@ -698,7 +774,7 @@ export function CalorieTracker() {
   const [newNote, setNewNote] = useState("")
   const [showNoteDialog, setShowNoteDialog] = useState(false)
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
-  const [isUserLoading, setIsUserLoading] = useState(true)
+  const [isUserLoading, setIsUserLoading] = useState(isUserLoading)
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split("T")[0])
   const [activeTab, setActiveTab] = useState<"diary" | "summary" | "goals">("diary")
   const [favoriteFoods, setFavoriteFoods] = useState<FoodItem[]>([])
@@ -805,6 +881,221 @@ export function CalorieTracker() {
     )
   }, [diaryEntries])
 
+  // Calculate micronutrient distributions
+  const vitaminDistribution = useMemo(() => {
+    if (!dailyGoals.vitamins || !dailyTotals.vitamins) return {}
+
+    const distribution: Record<string, number> = {}
+    let totalPercentage = 0
+
+    Object.entries(dailyGoals.vitamins).forEach(([key, goal]) => {
+      if (!goal) return
+      const current = dailyTotals.vitamins?.[key as keyof typeof dailyTotals.vitamins] || 0
+      const percentage = Math.min(100, (current / goal) * 100)
+      distribution[key] = percentage
+      totalPercentage += percentage
+    })
+
+    // Normalize to ensure total is 100%
+    if (totalPercentage > 0) {
+      Object.keys(distribution).forEach((key) => {
+        distribution[key] = (distribution[key] / totalPercentage) * 100
+      })
+    }
+
+    return distribution
+  }, [dailyGoals.vitamins, dailyTotals.vitamins])
+
+  const mineralDistribution = useMemo(() => {
+    if (!dailyGoals.minerals || !dailyTotals.minerals) return {}
+
+    const distribution: Record<string, number> = {}
+    let totalPercentage = 0
+
+    Object.entries(dailyGoals.minerals).forEach(([key, goal]) => {
+      if (!goal) return
+      const current = dailyTotals.minerals?.[key as keyof typeof dailyTotals.minerals] || 0
+      const percentage = Math.min(100, (current / goal) * 100)
+      distribution[key] = percentage
+      totalPercentage += percentage
+    })
+
+    // Normalize to ensure total is 100%
+    if (totalPercentage > 0) {
+      Object.keys(distribution).forEach((key) => {
+        distribution[key] = (distribution[key] / totalPercentage) * 100
+      })
+    }
+
+    return distribution
+  }, [dailyGoals.minerals, dailyTotals.minerals])
+
+  const aminoAcidDistribution = useMemo(() => {
+    if (!dailyGoals.aminoAcids || !dailyTotals.aminoAcids) return {}
+
+    const distribution: Record<string, number> = {}
+    let totalPercentage = 0
+
+    Object.entries(dailyGoals.aminoAcids).forEach(([key, goal]) => {
+      if (!goal) return
+      const current = dailyTotals.aminoAcids?.[key as keyof typeof dailyTotals.aminoAcids] || 0
+      const percentage = Math.min(100, (current / goal) * 100)
+      distribution[key] = percentage
+      totalPercentage += percentage
+    })
+
+    // Normalize to ensure total is 100%
+    if (totalPercentage > 0) {
+      Object.keys(distribution).forEach((key) => {
+        distribution[key] = (distribution[key] / totalPercentage) * 100
+      })
+    }
+
+    return distribution
+  }, [dailyGoals.aminoAcids, dailyTotals.aminoAcids])
+
+  const fattyAcidDistribution = useMemo(() => {
+    if (!dailyGoals.fattyAcids || !dailyTotals.fattyAcids) return {}
+
+    const distribution: Record<string, number> = {}
+    let totalPercentage = 0
+
+    Object.entries(dailyGoals.fattyAcids).forEach(([key, goal]) => {
+      if (!goal) return
+      const current = dailyTotals.fattyAcids?.[key as keyof typeof dailyTotals.fattyAcids] || 0
+      const percentage = Math.min(100, (current / goal) * 100)
+      distribution[key] = percentage
+      totalPercentage += percentage
+    })
+
+    // Normalize to ensure total is 100%
+    if (totalPercentage > 0) {
+      Object.keys(distribution).forEach((key) => {
+        distribution[key] = (distribution[key] / totalPercentage) * 100
+      })
+    }
+
+    return distribution
+  }, [dailyGoals.fattyAcids, dailyTotals.fattyAcids])
+
+  // Function to convert Tailwind bg color class to CSS color
+  function tailwindBgToColor(bgClass: string): string {
+    // Extract the color and shade from the class
+    const match = bgClass.match(/bg-([a-z]+)-(\d+)/)
+    if (!match) return "rgb(59, 130, 246)" // Default blue-500
+
+    const [, color, shade] = match
+
+    // Map of Tailwind colors to RGB values
+    const colorMap: Record<string, Record<string, string>> = {
+      red: {
+        "500": "rgb(239, 68, 68)",
+        "600": "rgb(220, 38, 38)",
+      },
+      orange: {
+        "500": "rgb(249, 115, 22)",
+        "600": "rgb(234, 88, 12)",
+      },
+      yellow: {
+        "500": "rgb(234, 179, 8)",
+        "600": "rgb(202, 138, 4)",
+      },
+      green: {
+        "500": "rgb(34, 197, 94)",
+        "600": "rgb(22, 163, 74)",
+      },
+      blue: {
+        "400": "rgb(96, 165, 250)",
+        "500": "rgb(59, 130, 246)",
+        "600": "rgb(37, 99, 235)",
+      },
+      indigo: {
+        "400": "rgb(129, 140, 248)",
+        "500": "rgb(99, 102, 241)",
+        "600": "rgb(79, 70, 229)",
+      },
+      purple: {
+        "500": "rgb(168, 85, 247)",
+        "600": "rgb(147, 51, 234)",
+      },
+      pink: {
+        "500": "rgb(236, 72, 153)",
+      },
+      gray: {
+        "400": "rgb(156, 163, 175)",
+        "500": "rgb(107, 114, 128)",
+      },
+    }
+
+    return colorMap[color]?.[shade] || "rgb(59, 130, 246)"
+  }
+
+  // Load user's daily goals and diary entries from Firestore
+  useEffect(() => {
+    const loadUserData = async () => {
+      if (!user?.uid) {
+        setIsUserLoading(false)
+        return
+      }
+
+      try {
+        console.log(`Loading user data for date: ${selectedDate}`)
+        setIsUserLoading(true)
+
+        // Load daily goals
+        const goalsDocRef = doc(db, "users", user.uid, "nutrition", "dailyGoals")
+        const goalsDoc = await getDoc(goalsDocRef)
+
+        if (goalsDoc.exists()) {
+          console.log("Daily goals loaded:", goalsDoc.data())
+          const loadedGoals = goalsDoc.data() as DailyGoals
+
+          // Merge with default extended nutrition goals
+          const mergedGoals = {
+            ...loadedGoals,
+            vitamins: { ...defaultExtendedNutritionGoals.vitamins, ...loadedGoals.vitamins },
+            minerals: { ...defaultExtendedNutritionGoals.minerals, ...loadedGoals.minerals },
+            aminoAcids: { ...defaultExtendedNutritionGoals.aminoAcids, ...loadedGoals.aminoAcids },
+            fattyAcids: { ...defaultExtendedNutritionGoals.fattyAcids, ...loadedGoals.fattyAcids },
+          }
+
+          setDailyGoals(mergedGoals)
+        } else {
+          // Create default goals if they don't exist
+          const defaultGoals = {
+            calories: userData?.dailyCalorieIntake || 2000,
+            protein: 100,
+            carbs: 250,
+            fat: 70,
+            fiber: 30,
+            sugar: 50,
+            sodium: 2300,
+            water: 2000,
+            ...defaultExtendedNutritionGoals,
+          }
+          console.log("Creating default goals:", defaultGoals)
+          await setDoc(goalsDocRef, defaultGoals)
+          setDailyGoals(defaultGoals)
+        }
+
+        // Load diary entries for the selected date
+        await loadDiaryEntriesForDate(selectedDate)
+
+        // Load favorite foods
+        await loadFavoriteFoods()
+
+        // Load recent foods
+        await loadRecentFoods()
+      } catch (error) {
+        console.error("Error loading user data:", error)
+      } finally {
+        setIsUserLoading(false)
+      }
+    }
+
+    loadUserData()
+  }, [user?.uid, selectedDate, userData?.dailyCalorieIntake])
+
   // Calculate total water intake
   const totalWaterIntake = useMemo(() => {
     return waterIntake.reduce((total, item) => total + item.amount, 0)
@@ -886,72 +1177,6 @@ export function CalorieTracker() {
       updateDailyGoals({ calories: userData.dailyCalorieIntake })
     }
   }, [userData?.dailyCalorieIntake])
-
-  // Load user's daily goals and diary entries from Firestore
-  useEffect(() => {
-    const loadUserData = async () => {
-      if (!user?.uid) {
-        setIsUserLoading(false)
-        return
-      }
-
-      try {
-        console.log(`Loading user data for date: ${selectedDate}`)
-        setIsUserLoading(true)
-
-        // Load daily goals
-        const goalsDocRef = doc(db, "users", user.uid, "nutrition", "dailyGoals")
-        const goalsDoc = await getDoc(goalsDocRef)
-
-        if (goalsDoc.exists()) {
-          console.log("Daily goals loaded:", goalsDoc.data())
-          const loadedGoals = goalsDoc.data() as DailyGoals
-
-          // Merge with default extended nutrition goals
-          const mergedGoals = {
-            ...loadedGoals,
-            vitamins: { ...defaultExtendedNutritionGoals.vitamins, ...loadedGoals.vitamins },
-            minerals: { ...defaultExtendedNutritionGoals.minerals, ...loadedGoals.minerals },
-            aminoAcids: { ...defaultExtendedNutritionGoals.aminoAcids, ...loadedGoals.aminoAcids },
-            fattyAcids: { ...defaultExtendedNutritionGoals.fattyAcids, ...loadedGoals.fattyAcids },
-          }
-
-          setDailyGoals(mergedGoals)
-        } else {
-          // Create default goals if they don't exist
-          const defaultGoals = {
-            calories: userData?.dailyCalorieIntake || 2000,
-            protein: 100,
-            carbs: 250,
-            fat: 70,
-            fiber: 30,
-            sugar: 50,
-            sodium: 2300,
-            water: 2000,
-            ...defaultExtendedNutritionGoals,
-          }
-          console.log("Creating default goals:", defaultGoals)
-          await setDoc(goalsDocRef, defaultGoals)
-          setDailyGoals(defaultGoals)
-        }
-
-        // Load diary entries for the selected date
-        await loadDiaryEntriesForDate(selectedDate)
-
-        // Load favorite foods
-        await loadFavoriteFoods()
-
-        // Load recent foods
-        await loadRecentFoods()
-      } catch (error) {
-        console.error("Error loading user data:", error)
-      } finally {
-        setIsUserLoading(false)
-      }
-    }
-
-    loadUserData()
-  }, [user?.uid, selectedDate, userData?.dailyCalorieIntake])
 
   // Load diary entries for a specific date
   const loadDiaryEntriesForDate = async (date: string) => {
@@ -2868,6 +3093,87 @@ export function CalorieTracker() {
                         )
                       })}
                   </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          </div>
+
+          {/* Detailed Micronutrient Charts */}
+          <div className="mt-6 space-y-6">
+            <Accordion type="multiple" value={expandedNutrients} className="bg-gray-800 rounded-md">
+              {/* Vitamins Chart */}
+              <AccordionItem value="vitamins-chart" className="border-b border-gray-700">
+                <AccordionTrigger
+                  onClick={() => toggleNutrientSection("vitamins-chart")}
+                  className="px-4 py-2 hover:bg-gray-700 text-white"
+                >
+                  Vitamins Chart
+                </AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                  <NutrientChart
+                    distribution={vitaminDistribution}
+                    getColor={getVitaminColor}
+                    getName={getVitaminName}
+                    title="Vitamins"
+                    emptyMessage="No vitamin data tracked yet"
+                  />
+                </AccordionContent>
+              </AccordionItem>
+
+              {/* Minerals Chart */}
+              <AccordionItem value="minerals-chart" className="border-b border-gray-700">
+                <AccordionTrigger
+                  onClick={() => toggleNutrientSection("minerals-chart")}
+                  className="px-4 py-2 hover:bg-gray-700 text-white"
+                >
+                  Minerals Chart
+                </AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                  <NutrientChart
+                    distribution={mineralDistribution}
+                    getColor={getMineralColor}
+                    getName={getMineralName}
+                    title="Minerals"
+                    emptyMessage="No mineral data tracked yet"
+                  />
+                </AccordionContent>
+              </AccordionItem>
+
+              {/* Amino Acids Chart */}
+              <AccordionItem value="amino-acids-chart" className="border-b border-gray-700">
+                <AccordionTrigger
+                  onClick={() => toggleNutrientSection("amino-acids-chart")}
+                  className="px-4 py-2 hover:bg-gray-700 text-white"
+                >
+                  Amino Acids Chart
+                </AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                  <NutrientChart
+                    distribution={aminoAcidDistribution}
+                    getColor={() => "bg-purple-500"}
+                    getName={getAminoAcidName}
+                    title="Amino Acids"
+                    emptyMessage="No amino acid data tracked yet"
+                  />
+                </AccordionContent>
+              </AccordionItem>
+
+              {/* Fatty Acids Chart */}
+              <AccordionItem value="fatty-acids-chart" className="border-b-0">
+                <AccordionTrigger
+                  onClick={() => toggleNutrientSection("fatty-acids-chart")}
+                  className="px-4 py-2 hover:bg-gray-700 text-white"
+                >
+                  Fatty Acids Chart
+                </AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                  <NutrientChart
+                    distribution={fattyAcidDistribution}
+                    getColor={getFattyAcidColor}
+                    getName={getFattyAcidName}
+                    title="Fatty Acids"
+                    emptyMessage="No fatty acid data tracked yet"
+                  />
                 </AccordionContent>
               </AccordionItem>
             </Accordion>
