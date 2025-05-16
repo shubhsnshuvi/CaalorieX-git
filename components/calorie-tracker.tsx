@@ -47,6 +47,11 @@ import { format, addDays, subDays, parseISO, isToday, isYesterday, isTomorrow } 
 import { KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core"
 import { arrayMove, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { DndContext } from "@dnd-kit/core"
+import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import {
   Dialog,
   DialogContent,
@@ -55,11 +60,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { DndContext } from "@dnd-kit/core"
-import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 
 // Types
 interface FoodItem {
@@ -325,6 +325,58 @@ const formatDateForDisplay = (dateString: string): string => {
   }
 }
 
+// Function to convert Tailwind bg color class to CSS color
+function tailwindBgToColor(bgClass: string): string {
+  // Extract the color and shade from the class
+  const match = bgClass.match(/bg-([a-z]+)-(\d+)/)
+  if (!match) return "rgb(59, 130, 246)" // Default blue-500
+
+  const [, color, shade] = match
+
+  // Map of Tailwind colors to RGB values
+  const colorMap: Record<string, Record<string, string>> = {
+    red: {
+      "500": "rgb(239, 68, 68)",
+      "600": "rgb(220, 38, 38)",
+    },
+    orange: {
+      "500": "rgb(249, 115, 22)",
+      "600": "rgb(234, 88, 12)",
+    },
+    yellow: {
+      "500": "rgb(234, 179, 8)",
+      "600": "rgb(202, 138, 4)",
+    },
+    green: {
+      "500": "rgb(34, 197, 94)",
+      "600": "rgb(22, 163, 74)",
+    },
+    blue: {
+      "400": "rgb(96, 165, 250)",
+      "500": "rgb(59, 130, 246)",
+      "600": "rgb(37, 99, 235)",
+    },
+    indigo: {
+      "400": "rgb(129, 140, 248)",
+      "500": "rgb(99, 102, 241)",
+      "600": "rgb(79, 70, 229)",
+    },
+    purple: {
+      "500": "rgb(168, 85, 247)",
+      "600": "rgb(147, 51, 234)",
+    },
+    pink: {
+      "500": "rgb(236, 72, 153)",
+    },
+    gray: {
+      "400": "rgb(156, 163, 175)",
+      "500": "rgb(107, 114, 128)",
+    },
+  }
+
+  return colorMap[color]?.[shade] || "rgb(59, 130, 246)"
+}
+
 // Sortable Food Item Component
 function SortableFoodItem({
   entry,
@@ -525,7 +577,7 @@ function SortableNoteItem({
   editingNoteId,
 }: {
   entry: NoteItem
-  startEditingNote: (id: string) => void
+  startEditingNote: (id: string | null) => void
   removeEntryFromDiary: (id: string) => void
   saveEditedNote: (id: string, content: string) => void
   editingNoteId: string | null
@@ -675,12 +727,16 @@ function NutrientChart({
   getName,
   title,
   emptyMessage = "No data available",
+  dailyTotals,
+  dailyGoals,
 }: {
   distribution: Record<string, number>
   getColor: (key: string) => string
   getName: (key: string) => string
   title: string
   emptyMessage?: string
+  dailyTotals: any
+  dailyGoals: any
 }) {
   const entries = Object.entries(distribution)
 
@@ -726,19 +782,29 @@ function NutrientChart({
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-center flex-1">
-        {entries.slice(0, 6).map(([key, percentage]) => (
-          <div key={key}>
-            <div className="flex items-center justify-center gap-1">
-              <div className={`w-3 h-3 rounded-full ${getColor(key)}`}></div>
-              <span className="text-white font-medium text-sm truncate">{getName(key)}</span>
+        {entries.slice(0, 6).map(([key, percentage]) => {
+          // Get the category from the key (vitamins, minerals, etc.)
+          const category =
+            Object.keys(dailyTotals).find(
+              (cat) => dailyTotals[cat] && typeof dailyTotals[cat] === "object" && key in dailyTotals[cat],
+            ) || ""
+
+          const current = category ? dailyTotals[category][key] || 0 : 0
+          const goal = category && dailyGoals[category] ? dailyGoals[category][key] || 0 : 0
+
+          return (
+            <div key={key}>
+              <div className="flex items-center justify-center gap-1">
+                <div className={`w-3 h-3 rounded-full ${getColor(key)}`}></div>
+                <span className="text-white font-medium text-sm truncate">{getName(key)}</span>
+              </div>
+              <div className="text-lg font-bold text-white">{Math.round(percentage)}%</div>
+              <div className="text-xs text-gray-400">
+                {Math.round(current)} / {goal}
+              </div>
             </div>
-            <div className="text-lg font-bold text-white">{Math.round(percentage)}%</div>
-            <div className="text-xs text-gray-400">
-              {Math.round(dailyTotals[key as keyof typeof dailyTotals] || 0)} /{" "}
-              {dailyGoals[key as keyof typeof dailyGoals] || 0}
-            </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )
@@ -774,7 +840,7 @@ export function CalorieTracker() {
   const [newNote, setNewNote] = useState("")
   const [showNoteDialog, setShowNoteDialog] = useState(false)
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
-  const [isUserLoading, setIsUserLoading] = useState(isUserLoading)
+  const [isUserLoading, setIsUserLoading] = useState(true)
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split("T")[0])
   const [activeTab, setActiveTab] = useState<"diary" | "summary" | "goals">("diary")
   const [favoriteFoods, setFavoriteFoods] = useState<FoodItem[]>([])
@@ -978,124 +1044,6 @@ export function CalorieTracker() {
     return distribution
   }, [dailyGoals.fattyAcids, dailyTotals.fattyAcids])
 
-  // Function to convert Tailwind bg color class to CSS color
-  function tailwindBgToColor(bgClass: string): string {
-    // Extract the color and shade from the class
-    const match = bgClass.match(/bg-([a-z]+)-(\d+)/)
-    if (!match) return "rgb(59, 130, 246)" // Default blue-500
-
-    const [, color, shade] = match
-
-    // Map of Tailwind colors to RGB values
-    const colorMap: Record<string, Record<string, string>> = {
-      red: {
-        "500": "rgb(239, 68, 68)",
-        "600": "rgb(220, 38, 38)",
-      },
-      orange: {
-        "500": "rgb(249, 115, 22)",
-        "600": "rgb(234, 88, 12)",
-      },
-      yellow: {
-        "500": "rgb(234, 179, 8)",
-        "600": "rgb(202, 138, 4)",
-      },
-      green: {
-        "500": "rgb(34, 197, 94)",
-        "600": "rgb(22, 163, 74)",
-      },
-      blue: {
-        "400": "rgb(96, 165, 250)",
-        "500": "rgb(59, 130, 246)",
-        "600": "rgb(37, 99, 235)",
-      },
-      indigo: {
-        "400": "rgb(129, 140, 248)",
-        "500": "rgb(99, 102, 241)",
-        "600": "rgb(79, 70, 229)",
-      },
-      purple: {
-        "500": "rgb(168, 85, 247)",
-        "600": "rgb(147, 51, 234)",
-      },
-      pink: {
-        "500": "rgb(236, 72, 153)",
-      },
-      gray: {
-        "400": "rgb(156, 163, 175)",
-        "500": "rgb(107, 114, 128)",
-      },
-    }
-
-    return colorMap[color]?.[shade] || "rgb(59, 130, 246)"
-  }
-
-  // Load user's daily goals and diary entries from Firestore
-  useEffect(() => {
-    const loadUserData = async () => {
-      if (!user?.uid) {
-        setIsUserLoading(false)
-        return
-      }
-
-      try {
-        console.log(`Loading user data for date: ${selectedDate}`)
-        setIsUserLoading(true)
-
-        // Load daily goals
-        const goalsDocRef = doc(db, "users", user.uid, "nutrition", "dailyGoals")
-        const goalsDoc = await getDoc(goalsDocRef)
-
-        if (goalsDoc.exists()) {
-          console.log("Daily goals loaded:", goalsDoc.data())
-          const loadedGoals = goalsDoc.data() as DailyGoals
-
-          // Merge with default extended nutrition goals
-          const mergedGoals = {
-            ...loadedGoals,
-            vitamins: { ...defaultExtendedNutritionGoals.vitamins, ...loadedGoals.vitamins },
-            minerals: { ...defaultExtendedNutritionGoals.minerals, ...loadedGoals.minerals },
-            aminoAcids: { ...defaultExtendedNutritionGoals.aminoAcids, ...loadedGoals.aminoAcids },
-            fattyAcids: { ...defaultExtendedNutritionGoals.fattyAcids, ...loadedGoals.fattyAcids },
-          }
-
-          setDailyGoals(mergedGoals)
-        } else {
-          // Create default goals if they don't exist
-          const defaultGoals = {
-            calories: userData?.dailyCalorieIntake || 2000,
-            protein: 100,
-            carbs: 250,
-            fat: 70,
-            fiber: 30,
-            sugar: 50,
-            sodium: 2300,
-            water: 2000,
-            ...defaultExtendedNutritionGoals,
-          }
-          console.log("Creating default goals:", defaultGoals)
-          await setDoc(goalsDocRef, defaultGoals)
-          setDailyGoals(defaultGoals)
-        }
-
-        // Load diary entries for the selected date
-        await loadDiaryEntriesForDate(selectedDate)
-
-        // Load favorite foods
-        await loadFavoriteFoods()
-
-        // Load recent foods
-        await loadRecentFoods()
-      } catch (error) {
-        console.error("Error loading user data:", error)
-      } finally {
-        setIsUserLoading(false)
-      }
-    }
-
-    loadUserData()
-  }, [user?.uid, selectedDate, userData?.dailyCalorieIntake])
-
   // Calculate total water intake
   const totalWaterIntake = useMemo(() => {
     return waterIntake.reduce((total, item) => total + item.amount, 0)
@@ -1177,6 +1125,72 @@ export function CalorieTracker() {
       updateDailyGoals({ calories: userData.dailyCalorieIntake })
     }
   }, [userData?.dailyCalorieIntake])
+
+  // Load user's daily goals and diary entries from Firestore
+  useEffect(() => {
+    const loadUserData = async () => {
+      if (!user?.uid) {
+        setIsUserLoading(false)
+        return
+      }
+
+      try {
+        console.log(`Loading user data for date: ${selectedDate}`)
+        setIsUserLoading(true)
+
+        // Load daily goals
+        const goalsDocRef = doc(db, "users", user.uid, "nutrition", "dailyGoals")
+        const goalsDoc = await getDoc(goalsDocRef)
+
+        if (goalsDoc.exists()) {
+          console.log("Daily goals loaded:", goalsDoc.data())
+          const loadedGoals = goalsDoc.data() as DailyGoals
+
+          // Merge with default extended nutrition goals
+          const mergedGoals = {
+            ...loadedGoals,
+            vitamins: { ...defaultExtendedNutritionGoals.vitamins, ...loadedGoals.vitamins },
+            minerals: { ...defaultExtendedNutritionGoals.minerals, ...loadedGoals.minerals },
+            aminoAcids: { ...defaultExtendedNutritionGoals.aminoAcids, ...loadedGoals.aminoAcids },
+            fattyAcids: { ...defaultExtendedNutritionGoals.fattyAcids, ...loadedGoals.fattyAcids },
+          }
+
+          setDailyGoals(mergedGoals)
+        } else {
+          // Create default goals if they don't exist
+          const defaultGoals = {
+            calories: userData?.dailyCalorieIntake || 2000,
+            protein: 100,
+            carbs: 250,
+            fat: 70,
+            fiber: 30,
+            sugar: 50,
+            sodium: 2300,
+            water: 2000,
+            ...defaultExtendedNutritionGoals,
+          }
+          console.log("Creating default goals:", defaultGoals)
+          await setDoc(goalsDocRef, defaultGoals)
+          setDailyGoals(defaultGoals)
+        }
+
+        // Load diary entries for the selected date
+        await loadDiaryEntriesForDate(selectedDate)
+
+        // Load favorite foods
+        await loadFavoriteFoods()
+
+        // Load recent foods
+        await loadRecentFoods()
+      } catch (error) {
+        console.error("Error loading user data:", error)
+      } finally {
+        setIsUserLoading(false)
+      }
+    }
+
+    loadUserData()
+  }, [user?.uid, selectedDate, userData?.dailyCalorieIntake])
 
   // Load diary entries for a specific date
   const loadDiaryEntriesForDate = async (date: string) => {
@@ -3098,87 +3112,6 @@ export function CalorieTracker() {
             </Accordion>
           </div>
 
-          {/* Detailed Micronutrient Charts */}
-          <div className="mt-6 space-y-6">
-            <Accordion type="multiple" value={expandedNutrients} className="bg-gray-800 rounded-md">
-              {/* Vitamins Chart */}
-              <AccordionItem value="vitamins-chart" className="border-b border-gray-700">
-                <AccordionTrigger
-                  onClick={() => toggleNutrientSection("vitamins-chart")}
-                  className="px-4 py-2 hover:bg-gray-700 text-white"
-                >
-                  Vitamins Chart
-                </AccordionTrigger>
-                <AccordionContent className="px-4 pb-4">
-                  <NutrientChart
-                    distribution={vitaminDistribution}
-                    getColor={getVitaminColor}
-                    getName={getVitaminName}
-                    title="Vitamins"
-                    emptyMessage="No vitamin data tracked yet"
-                  />
-                </AccordionContent>
-              </AccordionItem>
-
-              {/* Minerals Chart */}
-              <AccordionItem value="minerals-chart" className="border-b border-gray-700">
-                <AccordionTrigger
-                  onClick={() => toggleNutrientSection("minerals-chart")}
-                  className="px-4 py-2 hover:bg-gray-700 text-white"
-                >
-                  Minerals Chart
-                </AccordionTrigger>
-                <AccordionContent className="px-4 pb-4">
-                  <NutrientChart
-                    distribution={mineralDistribution}
-                    getColor={getMineralColor}
-                    getName={getMineralName}
-                    title="Minerals"
-                    emptyMessage="No mineral data tracked yet"
-                  />
-                </AccordionContent>
-              </AccordionItem>
-
-              {/* Amino Acids Chart */}
-              <AccordionItem value="amino-acids-chart" className="border-b border-gray-700">
-                <AccordionTrigger
-                  onClick={() => toggleNutrientSection("amino-acids-chart")}
-                  className="px-4 py-2 hover:bg-gray-700 text-white"
-                >
-                  Amino Acids Chart
-                </AccordionTrigger>
-                <AccordionContent className="px-4 pb-4">
-                  <NutrientChart
-                    distribution={aminoAcidDistribution}
-                    getColor={() => "bg-purple-500"}
-                    getName={getAminoAcidName}
-                    title="Amino Acids"
-                    emptyMessage="No amino acid data tracked yet"
-                  />
-                </AccordionContent>
-              </AccordionItem>
-
-              {/* Fatty Acids Chart */}
-              <AccordionItem value="fatty-acids-chart" className="border-b-0">
-                <AccordionTrigger
-                  onClick={() => toggleNutrientSection("fatty-acids-chart")}
-                  className="px-4 py-2 hover:bg-gray-700 text-white"
-                >
-                  Fatty Acids Chart
-                </AccordionTrigger>
-                <AccordionContent className="px-4 pb-4">
-                  <NutrientChart
-                    distribution={fattyAcidDistribution}
-                    getColor={getFattyAcidColor}
-                    getName={getFattyAcidName}
-                    title="Fatty Acids"
-                    emptyMessage="No fatty acid data tracked yet"
-                  />
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
-          </div>
-
           {/* Daily Goals Button */}
           <div className="mt-6">
             <Button onClick={() => setActiveTab("goals")} className="w-full bg-gray-700 hover:bg-gray-600 text-white">
@@ -3211,7 +3144,7 @@ export function CalorieTracker() {
                     className="bg-gray-800 border-gray-700 text-white w-20 mr-2"
                   />
                   <Select value={servingSize.unit} onValueChange={handleServingSizeUnitChange}>
-                    <SelectTrigger className="bg-gray-800 border-gray-700 text-white w-24">
+                    <SelectTrigger className="bg-gray-800 border-gray-700 text-white w-20">
                       <SelectValue placeholder="Unit" />
                     </SelectTrigger>
                     <SelectContent>
