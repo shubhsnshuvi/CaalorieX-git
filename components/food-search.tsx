@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { AlertCircle, Search, Loader2, Database, BookOpen, ChefHat, Utensils, Star } from "lucide-react"
-import { collection, query, where, getDocs, limit, collectionGroup, orderBy } from "firebase/firestore"
+import { collection, query, where, getDocs, limit, collectionGroup, orderBy, addDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { useAuth } from "@/lib/use-auth"
 
@@ -28,6 +28,11 @@ interface FoodItem {
   servingSize?: string
   servingWeight?: number
   isFavorite?: boolean
+  isVegetarian?: boolean
+  isVegan?: boolean
+  containsGluten?: boolean
+  region?: string
+  cuisine?: string
 }
 
 interface FoodSearchProps {
@@ -167,7 +172,6 @@ export function FoodSearch({ onSelectFood, showRecent = true, showFavorites = tr
       // Create a reference to the IFCT foods collection
       const foodsRef = collection(db, "ifct_foods")
 
-      // Create a query against the collection
       // First try exact keyword match
       let q = query(foodsRef, where("keywords", "array-contains", term.toLowerCase()), limit(20))
 
@@ -197,8 +201,13 @@ export function FoodSearch({ onSelectFood, showRecent = true, showFavorites = tr
               source: "ifct",
               category: data.category || "General",
               description: data.description || "",
-              servingSize: "100g",
-              servingWeight: 100,
+              servingSize: data.standardPortion?.description || "100g",
+              servingWeight: data.standardPortion?.amount || 100,
+              isVegetarian: data.isVegetarian || false,
+              isVegan: data.isVegan || false,
+              containsGluten: data.containsGluten || false,
+              region: data.region || "",
+              cuisine: data.cuisine || "Indian",
             })
           }
         })
@@ -217,8 +226,13 @@ export function FoodSearch({ onSelectFood, showRecent = true, showFavorites = tr
             source: "ifct",
             category: data.category || "General",
             description: data.description || "",
-            servingSize: "100g",
-            servingWeight: 100,
+            servingSize: data.standardPortion?.description || "100g",
+            servingWeight: data.standardPortion?.amount || 100,
+            isVegetarian: data.isVegetarian || false,
+            isVegan: data.isVegan || false,
+            containsGluten: data.containsGluten || false,
+            region: data.region || "",
+            cuisine: data.cuisine || "Indian",
           })
         })
       }
@@ -340,7 +354,7 @@ export function FoodSearch({ onSelectFood, showRecent = true, showFavorites = tr
             category: data.category || data.mealType || "Template",
             description: data.description || "",
             servingSize: "1 serving",
-            servingWeight: data.servingWeight || 100,
+            servingWeight: 100,
           })
         }
       })
@@ -934,6 +948,36 @@ function FoodCard({ food, onSelect, onToggleFavorite }: FoodCardProps) {
       <CardContent className="p-4">
         <h3 className="font-medium text-lg mb-2 line-clamp-2 text-white">{food.name}</h3>
         {food.description && <p className="text-xs text-gray-400 mb-2 line-clamp-2">{food.description}</p>}
+
+        {/* Add region and cuisine if available */}
+        {food.region && (
+          <p className="text-xs text-gray-400 mb-2">
+            <span className="font-medium">Region:</span> {food.region}
+            {food.cuisine && ` • ${food.cuisine}`}
+          </p>
+        )}
+
+        {/* Add dietary info if available */}
+        {(food.isVegetarian !== undefined || food.isVegan !== undefined) && (
+          <div className="flex gap-1 mb-2">
+            {food.isVegetarian && (
+              <Badge variant="outline" className="bg-green-900 text-green-100 border-green-800 text-xs">
+                Vegetarian
+              </Badge>
+            )}
+            {food.isVegan && (
+              <Badge variant="outline" className="bg-green-900 text-green-100 border-green-800 text-xs">
+                Vegan
+              </Badge>
+            )}
+            {food.containsGluten === false && (
+              <Badge variant="outline" className="bg-blue-900 text-blue-100 border-blue-800 text-xs">
+                Gluten-Free
+              </Badge>
+            )}
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-2">
           <div className="bg-gray-800 p-2 rounded">
             <div className="text-sm text-gray-400">Energy</div>

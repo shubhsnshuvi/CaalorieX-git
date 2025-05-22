@@ -27,6 +27,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { format } from "date-fns"
 import { Calendar as CalendarComponent } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { limit } from "firebase/firestore"
 
 // Define types for meal tracking
 interface FoodItem {
@@ -214,22 +215,48 @@ export function DailyMealTracker() {
     try {
       // Search in IFCT foods
       const ifctFoodsRef = collection(db, "ifct_foods")
-      const ifctQuery = query(ifctFoodsRef, where("keywords", "array-contains", term.toLowerCase()))
-      const ifctSnapshot = await getDocs(ifctQuery)
 
-      ifctSnapshot.forEach((doc) => {
-        const data = doc.data()
-        results.push({
-          id: doc.id,
-          name: data.name || "Unknown Food",
-          calories: data.nutrients?.calories || 0,
-          protein: data.nutrients?.protein || 0,
-          carbs: data.nutrients?.carbohydrates || 0,
-          fat: data.nutrients?.fat || 0,
-          quantity: "100g",
-          source: "ifct",
+      // First try keyword match
+      const keywordQuery = query(ifctFoodsRef, where("keywords", "array-contains", term.toLowerCase()), limit(10))
+      const keywordSnapshot = await getDocs(keywordQuery)
+
+      if (!keywordSnapshot.empty) {
+        keywordSnapshot.forEach((doc) => {
+          const data = doc.data()
+          results.push({
+            id: doc.id,
+            name: data.name || "Unknown Food",
+            calories: data.nutrients?.calories || 0,
+            protein: data.nutrients?.protein || 0,
+            carbs: data.nutrients?.carbohydrates || 0,
+            fat: data.nutrients?.fat || 0,
+            quantity: data.standardPortion?.description || "100g",
+            source: "ifct",
+          })
         })
-      })
+      } else {
+        // If no keyword matches, try a more general query
+        const generalQuery = query(ifctFoodsRef, limit(50))
+        const generalSnapshot = await getDocs(generalQuery)
+
+        generalSnapshot.forEach((doc) => {
+          const data = doc.data()
+          const name = (data.name || "").toLowerCase()
+
+          if (name.includes(term.toLowerCase())) {
+            results.push({
+              id: doc.id,
+              name: data.name || "Unknown Food",
+              calories: data.nutrients?.calories || 0,
+              protein: data.nutrients?.protein || 0,
+              carbs: data.nutrients?.carbohydrates || 0,
+              fat: data.nutrients?.fat || 0,
+              quantity: data.standardPortion?.description || "100g",
+              source: "ifct",
+            })
+          }
+        })
+      }
 
       // Search in USDA foods (via our API)
       try {
