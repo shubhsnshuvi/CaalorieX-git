@@ -22,7 +22,7 @@ interface FoodItem {
   fat: number
   carbs: number
   fiber?: number
-  source: "ifct" | "usda" | "custom" | "template" | "recipe"
+  source: "ifct" | "usda" | "custom" | "template" | "recipe" | "nccdb"
   category?: string
   description?: string
   servingSize?: string
@@ -46,7 +46,9 @@ export function FoodSearch({ onSelectFood, showRecent = true, showFavorites = tr
   const [isSearching, setIsSearching] = useState(false)
   const [searchResults, setSearchResults] = useState<FoodItem[]>([])
   const [error, setError] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<"all" | "ifct" | "usda" | "custom" | "templates" | "recipes">("all")
+  const [activeTab, setActiveTab] = useState<"all" | "ifct" | "nccdb" | "usda" | "custom" | "templates" | "recipes">(
+    "all",
+  )
   const [isInitialLoad, setIsInitialLoad] = useState(true)
   const [recentFoods, setRecentFoods] = useState<FoodItem[]>([])
   const [favoriteFoods, setFavoriteFoods] = useState<FoodItem[]>([])
@@ -167,29 +169,85 @@ export function FoodSearch({ onSelectFood, showRecent = true, showFavorites = tr
   }
 
   // Function to search IFCT database
-  const searchIFCT = async (term: string): Promise<FoodItem[]> => {
+  const searchIFCTAndNCCDB = async (term: string): Promise<FoodItem[]> => {
     try {
-      // Create a reference to the IFCT foods collection
-      const foodsRef = collection(db, "ifct_foods")
-
-      // First try exact keyword match
-      let q = query(foodsRef, where("keywords", "array-contains", term.toLowerCase()), limit(20))
-
-      let querySnapshot = await getDocs(q)
       const results: FoodItem[] = []
 
-      // If no results, try partial match
-      if (querySnapshot.empty) {
-        // This is a simple approach - in a production app, you might want to use
-        // a more sophisticated search like Algolia or Firebase's full-text search
-        q = query(foodsRef, limit(100))
-        querySnapshot = await getDocs(q)
+      // Search IFCT foods
+      const ifctFoodsRef = collection(db, "ifct_foods")
+      const q = query(ifctFoodsRef, where("keywords", "array-contains", term.toLowerCase()), limit(20))
+      const querySnapshot = await getDocs(q)
 
-        querySnapshot.forEach((doc) => {
+      // Process IFCT results
+      querySnapshot.forEach((doc) => {
+        const data = doc.data()
+        results.push({
+          id: doc.id,
+          name: data.name || "Unknown Food",
+          calories: data.nutrients?.calories || 0,
+          protein: data.nutrients?.protein || 0,
+          fat: data.nutrients?.fat || 0,
+          carbs: data.nutrients?.carbohydrates || 0,
+          fiber: data.nutrients?.fiber || 0,
+          source: "ifct",
+          category: data.category || "General",
+          description: data.description || "",
+          servingSize: data.standardPortion?.description || "100g",
+          servingWeight: data.standardPortion?.amount || 100,
+          isVegetarian: data.isVegetarian || false,
+          isVegan: data.isVegan || false,
+          containsGluten: data.containsGluten || false,
+          region: data.region || "",
+          cuisine: data.cuisine || "Indian",
+        })
+      })
+
+      // Search NCCDB foods
+      const nccdbFoodsRef = collection(db, "nccdb_foods")
+      const nccdbQuery = query(nccdbFoodsRef, where("keywords", "array-contains", term.toLowerCase()), limit(20))
+      const nccdbSnapshot = await getDocs(nccdbQuery)
+
+      // Process NCCDB results
+      nccdbSnapshot.forEach((doc) => {
+        const data = doc.data()
+        results.push({
+          id: doc.id,
+          name: data.name || "Unknown Food",
+          calories: data.nutrients?.calories || 0,
+          protein: data.nutrients?.protein || 0,
+          fat: data.nutrients?.fat || 0,
+          carbs: data.nutrients?.carbohydrates || 0,
+          fiber: data.nutrients?.fiber || 0,
+          source: "nccdb",
+          category: data.category || "General",
+          description: data.description || "",
+          servingSize: data.standardPortion?.description || "100g",
+          servingWeight: data.standardPortion?.amount || 100,
+          isVegetarian: data.isVegetarian || false,
+          isVegan: data.isVegan || false,
+          containsGluten: data.containsGluten || false,
+          region: data.region || "",
+          cuisine: data.cuisine || "Indian",
+        })
+      })
+
+      // If no exact matches, try partial matching
+      if (results.length === 0) {
+        // Search IFCT with partial matching
+        const allIFCTQuery = query(ifctFoodsRef, limit(100))
+        const allIFCTSnapshot = await getDocs(allIFCTQuery)
+
+        allIFCTSnapshot.forEach((doc) => {
           const data = doc.data()
-          const name = data.name?.toLowerCase() || ""
+          const name = (data.name || "").toLowerCase()
+          const description = (data.description || "").toLowerCase()
+          const category = (data.category || "").toLowerCase()
 
-          if (name.includes(term.toLowerCase())) {
+          if (
+            name.includes(term.toLowerCase()) ||
+            description.includes(term.toLowerCase()) ||
+            category.includes(term.toLowerCase())
+          ) {
             results.push({
               id: doc.id,
               name: data.name || "Unknown Food",
@@ -211,35 +269,48 @@ export function FoodSearch({ onSelectFood, showRecent = true, showFavorites = tr
             })
           }
         })
-      } else {
-        // Process exact matches
-        querySnapshot.forEach((doc) => {
+
+        // Search NCCDB with partial matching
+        const allNCCDBQuery = query(nccdbFoodsRef, limit(100))
+        const allNCCDBSnapshot = await getDocs(allNCCDBQuery)
+
+        allNCCDBSnapshot.forEach((doc) => {
           const data = doc.data()
-          results.push({
-            id: doc.id,
-            name: data.name || "Unknown Food",
-            calories: data.nutrients?.calories || 0,
-            protein: data.nutrients?.protein || 0,
-            fat: data.nutrients?.fat || 0,
-            carbs: data.nutrients?.carbohydrates || 0,
-            fiber: data.nutrients?.fiber || 0,
-            source: "ifct",
-            category: data.category || "General",
-            description: data.description || "",
-            servingSize: data.standardPortion?.description || "100g",
-            servingWeight: data.standardPortion?.amount || 100,
-            isVegetarian: data.isVegetarian || false,
-            isVegan: data.isVegan || false,
-            containsGluten: data.containsGluten || false,
-            region: data.region || "",
-            cuisine: data.cuisine || "Indian",
-          })
+          const name = (data.name || "").toLowerCase()
+          const description = (data.description || "").toLowerCase()
+          const category = (data.category || "").toLowerCase()
+
+          if (
+            name.includes(term.toLowerCase()) ||
+            description.includes(term.toLowerCase()) ||
+            category.includes(term.toLowerCase())
+          ) {
+            results.push({
+              id: doc.id,
+              name: data.name || "Unknown Food",
+              calories: data.nutrients?.calories || 0,
+              protein: data.nutrients?.protein || 0,
+              fat: data.nutrients?.fat || 0,
+              carbs: data.nutrients?.carbohydrates || 0,
+              fiber: data.nutrients?.fiber || 0,
+              source: "nccdb",
+              category: data.category || "General",
+              description: data.description || "",
+              servingSize: data.standardPortion?.description || "100g",
+              servingWeight: data.standardPortion?.amount || 100,
+              isVegetarian: data.isVegetarian || false,
+              isVegan: data.isVegan || false,
+              containsGluten: data.containsGluten || false,
+              region: data.region || "",
+              cuisine: data.cuisine || "Indian",
+            })
+          }
         })
       }
 
       return results
     } catch (error) {
-      console.error("Error searching IFCT foods:", error)
+      console.error("Error searching IFCT and NCCDB foods:", error)
       throw error
     }
   }
@@ -537,8 +608,8 @@ export function FoodSearch({ onSelectFood, showRecent = true, showFavorites = tr
 
     try {
       // Search in all databases in parallel
-      const [ifctResults, usdaResults, customResults, templateResults, recipeResults] = await Promise.all([
-        searchIFCT(searchTerm),
+      const [ifctNccdbResults, usdaResults, customResults, templateResults, recipeResults] = await Promise.all([
+        searchIFCTAndNCCDB(searchTerm),
         searchUSDA(searchTerm),
         searchCustomFoods(searchTerm),
         searchMealTemplates(searchTerm),
@@ -547,13 +618,13 @@ export function FoodSearch({ onSelectFood, showRecent = true, showFavorites = tr
 
       // Prioritize results
       // 1. Custom foods, recipes, and templates
-      // 2. Indian foods from IFCT
-      // 3. Other IFCT foods
+      // 2. Indian foods from IFCT and NCCDB
+      // 3. Other IFCT and NCCDB foods
       // 4. Indian foods from USDA
       // 5. Other USDA foods
 
-      const indianFoodsIFCT = ifctResults.filter((food) => isIndianFood(food.name))
-      const otherFoodsIFCT = ifctResults.filter((food) => !isIndianFood(food.name))
+      const indianFoodsIFCTNCCDB = ifctNccdbResults.filter((food) => isIndianFood(food.name))
+      const otherFoodsIFCTNCCDB = ifctNccdbResults.filter((food) => !isIndianFood(food.name))
       const indianFoodsUSDA = usdaResults.filter((food) => isIndianFood(food.name))
       const otherFoodsUSDA = usdaResults.filter((food) => !isIndianFood(food.name))
 
@@ -561,8 +632,8 @@ export function FoodSearch({ onSelectFood, showRecent = true, showFavorites = tr
         ...customResults,
         ...recipeResults,
         ...templateResults,
-        ...indianFoodsIFCT,
-        ...otherFoodsIFCT,
+        ...indianFoodsIFCTNCCDB,
+        ...otherFoodsIFCTNCCDB,
         ...indianFoodsUSDA,
         ...otherFoodsUSDA,
       ]
@@ -580,6 +651,7 @@ export function FoodSearch({ onSelectFood, showRecent = true, showFavorites = tr
   const filteredResults = searchResults.filter((result) => {
     if (activeTab === "all") return true
     if (activeTab === "ifct") return result.source === "ifct"
+    if (activeTab === "nccdb") return result.source === "nccdb"
     if (activeTab === "usda") return result.source === "usda"
     if (activeTab === "custom") return result.source === "custom"
     if (activeTab === "recipes") return result.source === "recipe"
@@ -690,12 +762,15 @@ export function FoodSearch({ onSelectFood, showRecent = true, showFavorites = tr
 
           {searchResults.length > 0 ? (
             <Tabs defaultValue="all" value={activeTab} onValueChange={(value) => setActiveTab(value as any)}>
-              <TabsList className="grid w-full grid-cols-6 tabs-list">
+              <TabsList className="grid w-full grid-cols-7 tabs-list">
                 <TabsTrigger value="all" className="tab-trigger text-white">
                   All Results
                 </TabsTrigger>
                 <TabsTrigger value="ifct" className="tab-trigger text-white">
                   IFCT
+                </TabsTrigger>
+                <TabsTrigger value="nccdb" className="tab-trigger text-white">
+                  NCCDB
                 </TabsTrigger>
                 <TabsTrigger value="usda" className="tab-trigger text-white">
                   USDA
@@ -726,6 +801,21 @@ export function FoodSearch({ onSelectFood, showRecent = true, showFavorites = tr
                 )}
               </TabsContent>
               <TabsContent value="ifct" className="mt-4">
+                <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+                  {filteredResults.map((food) => (
+                    <FoodCard
+                      key={`${food.source}-${food.id}`}
+                      food={food}
+                      onSelect={handleFoodSelect}
+                      onToggleFavorite={toggleFavorite}
+                    />
+                  ))}
+                </div>
+                {filteredResults.length === 0 && (
+                  <div className="text-center py-8 text-gray-400">No results found in this category</div>
+                )}
+              </TabsContent>
+              <TabsContent value="nccdb" className="mt-4">
                 <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
                   {filteredResults.map((food) => (
                     <FoodCard
@@ -867,6 +957,8 @@ function FoodCard({ food, onSelect, onToggleFavorite }: FoodCardProps) {
     switch (source) {
       case "ifct":
         return "bg-orange-950"
+      case "nccdb":
+        return "bg-amber-950"
       case "usda":
         return "bg-blue-950"
       case "custom":
@@ -885,6 +977,8 @@ function FoodCard({ food, onSelect, onToggleFavorite }: FoodCardProps) {
     switch (source) {
       case "ifct":
         return "bg-orange-900 text-orange-100 border-orange-800"
+      case "nccdb":
+        return "bg-amber-900 text-amber-100 border-amber-800"
       case "usda":
         return "bg-blue-900 text-blue-100 border-blue-800"
       case "custom":
@@ -921,6 +1015,8 @@ function FoodCard({ food, onSelect, onToggleFavorite }: FoodCardProps) {
     switch (source) {
       case "ifct":
         return "IFCT"
+      case "nccdb":
+        return "NCCDB"
       case "usda":
         return "USDA"
       case "custom":

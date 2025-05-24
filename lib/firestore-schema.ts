@@ -75,7 +75,7 @@ export async function searchCollection(collectionPath: string, constraints: Quer
 }
 
 /**
- * Search for food items across all food-related collections
+ * Search for food items across all food-related collections including NCCDB
  * @param searchTerm The search term
  * @param limitCount Maximum number of results to return per collection
  * @returns Array of matching food items
@@ -105,7 +105,25 @@ export async function searchAllFoodSources(searchTerm: string, limitCount = 20) 
       console.error("Error searching IFCT foods:", error)
     }
 
-    // 2. Search custom foods
+    // 2. Search NCCDB foods
+    try {
+      const nccdbFoods = await searchCollection(
+        "nccdb_foods",
+        [where("keywords", "array-contains", lowerSearchTerm)],
+        limitCount,
+      )
+
+      results.push(
+        ...nccdbFoods.map((food) => ({
+          ...food,
+          source: "nccdb",
+        })),
+      )
+    } catch (error) {
+      console.error("Error searching NCCDB foods:", error)
+    }
+
+    // 3. Search custom foods
     try {
       const customFoods = await searchCollectionGroup("foodDatabase", [], limitCount * 2)
 
@@ -134,7 +152,7 @@ export async function searchAllFoodSources(searchTerm: string, limitCount = 20) 
       console.error("Error searching custom foods:", error)
     }
 
-    // 3. Search meal templates
+    // 4. Search meal templates
     try {
       const mealTemplates = await searchCollectionGroup("meal_templates", [], limitCount * 2)
 
@@ -171,7 +189,7 @@ export async function searchAllFoodSources(searchTerm: string, limitCount = 20) 
 }
 
 /**
- * Get food items for a specific meal type from all sources
+ * Get food items for a specific meal type from all sources including NCCDB
  * @param mealType The meal type (Breakfast, Lunch, Dinner, Snack)
  * @param dietPreference The diet preference
  * @param allergyList List of allergens to exclude
@@ -227,7 +245,49 @@ export async function getFoodsForMealTypeFromAllSources(
       console.error("Error getting IFCT foods for meal type:", error)
     }
 
-    // 2. Get custom foods
+    // 2. Get foods from NCCDB
+    try {
+      const nccdbFoods = await searchCollection("nccdb_foods", [limit(50)])
+
+      // Filter foods based on meal type, diet preference, and allergies
+      const filteredNCCDBFoods = nccdbFoods.filter((food) => {
+        const category = (food.category || "").toLowerCase()
+        const name = (food.name || "").toLowerCase()
+
+        // Check if matches meal type
+        const matchesMealType =
+          category.includes(mealType.toLowerCase()) ||
+          (mealType === "Breakfast" && category.includes("breakfast")) ||
+          (mealType === "Lunch" && category.includes("lunch")) ||
+          (mealType === "Dinner" && category.includes("dinner")) ||
+          (mealType === "Snack" && category.includes("snack"))
+
+        // Check if matches diet preference
+        const matchesDietPreference =
+          dietPreference === "non-veg" || // non-veg can eat anything
+          (dietPreference === "vegetarian" && food.isVegetarian) ||
+          (dietPreference === "vegan" && food.isVegan) ||
+          (dietPreference === "indian-vegetarian" && food.isVegetarian) ||
+          (dietPreference === "gluten-free" && !food.containsGluten) ||
+          (dietPreference === "jain-diet" && !food.containsOnionGarlic && !food.containsRootVegetables)
+
+        // Check if contains allergens
+        const hasNoAllergies = !allergyList.some((allergy) => name.includes(allergy))
+
+        return matchesMealType && matchesDietPreference && hasNoAllergies
+      })
+
+      results.push(
+        ...filteredNCCDBFoods.map((food) => ({
+          ...food,
+          source: "nccdb",
+        })),
+      )
+    } catch (error) {
+      console.error("Error getting NCCDB foods for meal type:", error)
+    }
+
+    // 3. Get custom foods
     try {
       const customFoods = await searchCollectionGroup("foodDatabase", [], 100)
 
