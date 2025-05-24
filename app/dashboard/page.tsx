@@ -138,6 +138,25 @@ export default function DashboardPage() {
             </div>
           </div>
 
+          {/* Personal Dietitian Section */}
+          <div className="mb-6">
+            <Card className="card-gradient overflow-hidden border-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
+              <div className="h-2 bg-gradient-to-r from-green-500 to-green-600"></div>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <div className="mr-3 p-2 rounded-full bg-green-500/10">
+                    <User2 className="h-5 w-5 text-green-500" />
+                  </div>
+                  Your Personal Dietitian
+                </CardTitle>
+                <CardDescription>Get expert nutrition guidance from our certified dietitian</CardDescription>
+              </CardHeader>
+              <CardContent className="p-6">
+                <DietitianCard />
+              </CardContent>
+            </Card>
+          </div>
+
           {/* Main Features Grid */}
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             <Card className="card-gradient overflow-hidden border-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
@@ -216,7 +235,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Secondary Features */}
-          <div className="grid gap-6 md:grid-cols-2">
+          <div className="grid gap-6">
             <Card className="card-gradient overflow-hidden border-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
               <div className="h-2 bg-gradient-to-r from-orange-500 to-orange-600"></div>
               <CardHeader>
@@ -239,22 +258,6 @@ export default function DashboardPage() {
                     View History
                   </Button>
                 </div>
-              </CardContent>
-            </Card>
-
-            <Card className="card-gradient overflow-hidden border-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
-              <div className="h-2 bg-gradient-to-r from-orange-500 to-orange-600"></div>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <div className="mr-3 p-2 rounded-full bg-orange-500/10">
-                    <User2 className="h-5 w-5 text-orange-500" />
-                  </div>
-                  Personal Dietitian
-                </CardTitle>
-                <CardDescription>Get expert nutrition advice</CardDescription>
-              </CardHeader>
-              <CardContent className="p-6">
-                <DietitianCard />
               </CardContent>
             </Card>
           </div>
